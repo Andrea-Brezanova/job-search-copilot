@@ -14,12 +14,87 @@ import type {
 export function Workspace() {
   const [profileText, setProfileText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [uploadedResumeFile, setUploadedResumeFile] = useState<File | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState("");
+  const [uploadNote, setUploadNote] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const [fitResult, setFitResult] = useState<FitAnalysis | null>(null);
   const [applicationDocs, setApplicationDocs] =
     useState<ApplicationDocsType | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  async function handleResumeFileChange(file: File | null) {
+    // Clear old upload messages each time the user chooses a new file.
+    setUploadError("");
+    setUploadNote("");
+    setUploadSuccess("");
+    setUploadedResumeFile(null);
+    setUploadedFileName("");
+
+    if (!file) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadedFileName(file.name);
+
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+
+      if (!extension || !["txt", "pdf", "doc", "docx"].includes(extension)) {
+        throw new Error("Please upload a .txt, .pdf, .doc, or .docx file.");
+      }
+
+      if (extension === "txt") {
+        // Text files can be read directly in the browser, so we use them to fill the textarea.
+        const textContent = await file.text();
+        setProfileText(textContent);
+        setUploadSuccess("Text file loaded successfully. Resume text added to the form.");
+        return;
+      }
+
+      if (extension === "pdf") {
+        // PDFs are sent to the backend because the browser should not handle PDF text extraction itself.
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/parse-resume", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = (await response.json()) as {
+          extractedText?: string;
+          message?: string;
+          error?: string;
+        };
+
+        if (!response.ok || !data.extractedText) {
+          throw new Error(data.error ?? "Unable to parse the uploaded PDF.");
+        }
+
+        setProfileText(data.extractedText);
+        setUploadSuccess(
+          data.message ?? "PDF parsed successfully. Resume text added to the form."
+        );
+        return;
+      }
+
+      // DOC and DOCX files are still stored locally until that parser is added.
+      setUploadedResumeFile(file);
+      setUploadNote("File uploaded. PDF/DOCX parsing is the next step.");
+    } catch (error) {
+      setUploadError(
+        error instanceof Error ? error.message : "Unable to process the uploaded file."
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  }
 
   async function analyzeFit() {
     setStatusMessage("");
@@ -99,7 +174,16 @@ export function Workspace() {
         </header>
 
         <section className="mt-10 grid gap-6 lg:grid-cols-2">
-          <ResumeForm value={profileText} onChange={setProfileText} />
+          <ResumeForm
+            value={profileText}
+            onChange={setProfileText}
+            onFileChange={handleResumeFileChange}
+            isUploading={isUploading}
+            uploadError={uploadError}
+            uploadSuccess={uploadSuccess}
+            uploadedFileName={uploadedFileName}
+            uploadNote={uploadNote}
+          />
           <JobForm value={jobDescription} onChange={setJobDescription} />
         </section>
 
