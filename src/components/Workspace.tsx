@@ -1,0 +1,139 @@
+// This file coordinates the homepage UI and API calls for the MVP flow.
+"use client";
+
+import { useState } from "react";
+import { ApplicationDocs } from "@/components/ApplicationDocs";
+import { FitResult } from "@/components/FitResult";
+import { JobForm } from "@/components/JobForm";
+import { ResumeForm } from "@/components/ResumeForm";
+import type {
+  ApplicationDocs as ApplicationDocsType,
+  FitAnalysis
+} from "@/lib/types";
+
+export function Workspace() {
+  const [profileText, setProfileText] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [fitResult, setFitResult] = useState<FitAnalysis | null>(null);
+  const [applicationDocs, setApplicationDocs] =
+    useState<ApplicationDocsType | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  async function analyzeFit() {
+    setStatusMessage("");
+    setApplicationDocs(null);
+    setIsAnalyzing(true);
+
+    try {
+      const response = await fetch("/api/analyze-job", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ profileText, jobDescription })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to analyze job fit.");
+      }
+
+      setFitResult(data as FitAnalysis);
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred."
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
+  async function generateApplication() {
+    setStatusMessage("");
+    setIsGenerating(true);
+
+    try {
+      const response = await fetch("/api/generate-application", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ profileText, jobDescription })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to generate application documents.");
+      }
+
+      setApplicationDocs(data as ApplicationDocsType);
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred."
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  const isDisabled = !profileText.trim() || !jobDescription.trim();
+
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        <header className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
+            Phase 1 MVP
+          </p>
+          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
+            Analyze job fit and draft application materials in one place.
+          </h1>
+          <p className="mt-4 text-base leading-7 text-stone-600">
+            Paste your background and one job description, then generate a quick
+            match score, recommendation, cover letter, and professional email.
+          </p>
+        </header>
+
+        <section className="mt-10 grid gap-6 lg:grid-cols-2">
+          <ResumeForm value={profileText} onChange={setProfileText} />
+          <JobForm value={jobDescription} onChange={setJobDescription} />
+        </section>
+
+        <section className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={analyzeFit}
+            disabled={isDisabled || isAnalyzing}
+            className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
+          >
+            {isAnalyzing ? "Analyzing..." : "Analyze Fit"}
+          </button>
+
+          <button
+            type="button"
+            onClick={generateApplication}
+            disabled={isDisabled || isGenerating}
+            className="rounded-xl border border-stone-300 bg-white px-5 py-3 text-sm font-semibold text-stone-800 transition hover:border-stone-400 hover:bg-stone-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+          >
+            {isGenerating ? "Generating..." : "Generate Application"}
+          </button>
+        </section>
+
+        {statusMessage ? (
+          <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {statusMessage}
+          </p>
+        ) : null}
+
+        <section className="mt-8 grid gap-6 xl:grid-cols-2">
+          <FitResult result={fitResult} />
+          <ApplicationDocs documents={applicationDocs} />
+        </section>
+      </div>
+    </main>
+  );
+}
