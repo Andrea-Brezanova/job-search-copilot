@@ -49,6 +49,10 @@ export function Workspace() {
         throw new Error("Please upload a .txt, .pdf, .doc, or .docx file.");
       }
 
+      // We keep the selected file in state so the page knows a resume file exists,
+      // even if that file has not been turned into usable text yet.
+      setUploadedResumeFile(file);
+
       if (extension === "txt") {
         // Text files can be read directly in the browser, so we use them to fill the textarea.
         const textContent = await file.text();
@@ -85,7 +89,6 @@ export function Workspace() {
       }
 
       // DOC and DOCX files are still stored locally until that parser is added.
-      setUploadedResumeFile(file);
       setUploadNote("File uploaded. PDF/DOCX parsing is the next step.");
     } catch (error) {
       setUploadError(
@@ -99,6 +102,14 @@ export function Workspace() {
   async function analyzeFit() {
     setStatusMessage("");
     setApplicationDocs(null);
+
+    if (!canSubmitWithCurrentResumeInput()) {
+      setStatusMessage(
+        "File selected, but this format is not parsed yet. Please paste your resume text for now."
+      );
+      return;
+    }
+
     setIsAnalyzing(true);
 
     try {
@@ -128,6 +139,14 @@ export function Workspace() {
 
   async function generateApplication() {
     setStatusMessage("");
+
+    if (!canSubmitWithCurrentResumeInput()) {
+      setStatusMessage(
+        "File selected, but this format is not parsed yet. Please paste your resume text for now."
+      );
+      return;
+    }
+
     setIsGenerating(true);
 
     try {
@@ -155,7 +174,18 @@ export function Workspace() {
     }
   }
 
-  const isDisabled = !profileText.trim() || !jobDescription.trim();
+  // These booleans make the form rules easier to read and maintain.
+  const hasResumeText = profileText.trim().length > 0;
+  const hasResumeFile = uploadedResumeFile !== null;
+  const hasJobText = jobDescription.trim().length > 0;
+  const hasUsableResumeInput = hasResumeText || hasResumeFile;
+  const isDisabled = !hasJobText || !hasUsableResumeInput;
+
+  function canSubmitWithCurrentResumeInput() {
+    // The backend endpoints still need actual resume text, so a file-only state
+    // should be blocked until that file has been parsed into the textarea.
+    return hasJobText && hasResumeText;
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">

@@ -1,6 +1,5 @@
 // This file parses raw profile text into a lightweight structured shape.
-import { generateStructuredOutput } from "@/lib/llm/client";
-import { PARSE_PROFILE_PROMPT } from "@/lib/llm/prompts";
+// The parser is deterministic so the matching flow does not depend on the LLM.
 import type { ParsedProfile } from "@/lib/types";
 
 const DEFAULT_SKILL_KEYWORDS = [
@@ -21,15 +20,6 @@ const DEFAULT_SKILL_KEYWORDS = [
 ];
 
 export async function parseProfileText(profileText: string): Promise<ParsedProfile> {
-  const llmResult = await generateStructuredOutput<ParsedProfile>({
-    prompt: PARSE_PROFILE_PROMPT,
-    input: profileText
-  });
-
-  if (llmResult) {
-    return llmResult;
-  }
-
   const normalizedText = profileText.toLowerCase();
   const skills = DEFAULT_SKILL_KEYWORDS.filter((skill) =>
     normalizedText.includes(skill)

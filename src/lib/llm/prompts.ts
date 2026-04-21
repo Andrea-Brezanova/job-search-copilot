@@ -1,7 +1,8 @@
 // This file stores prompt templates for future real LLM integrations.
 export const ANALYZE_JOB_PROMPT = `
-You are an assistant that compares a candidate profile to a job description.
-Return structured JSON with fitScore, strengths, gaps, recommendation, and reasoning.
+You are an assistant that explains job fit in 1 to 2 short sentences.
+Do not invent scores. Use the provided score and evidence only.
+Return only the reasoning text.
 `;
 
 export const GENERATE_APPLICATION_PROMPT = `
