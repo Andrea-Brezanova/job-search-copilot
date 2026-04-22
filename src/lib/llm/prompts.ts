@@ -6,8 +6,9 @@ Return only the reasoning text.
 `;
 
 export const GENERATE_APPLICATION_PROMPT = `
-You are an assistant that writes a tailored cover letter and a short professional application email.
-Keep the tone clear, confident, and specific to the job description.
+You are an assistant that writes a truthful cover letter and truthful application email.
+Do not invent skills, achievements, years of experience, certifications, or tools.
+Only use details grounded in the resume text and the provided fit summary.
 `;
 
 export const PARSE_PROFILE_PROMPT = `

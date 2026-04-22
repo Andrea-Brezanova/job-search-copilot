@@ -102,6 +102,8 @@ export function parseJobText(jobDescription: string): ParsedJob {
 
   return {
     title: lines[0] ?? "Untitled Role",
+    company: extractCompanyName(lines),
+    locationText: extractLocationText(lines),
     responsibilities: lines.slice(1, 5),
     requirements,
     keywords: [...requirements, ...bonusKeywords]
@@ -229,6 +231,25 @@ function extractRequiredSkills(lines: string[], keywords: string[]) {
 
 function extractBonusKeywords(keywords: string[], requiredSkills: string[]) {
   return keywords.filter((keyword) => !requiredSkills.includes(keyword)).slice(0, 4);
+}
+
+function extractCompanyName(lines: string[]) {
+  const possibleCompanyLine = lines[1];
+
+  if (
+    possibleCompanyLine &&
+    possibleCompanyLine.length < 80 &&
+    !possibleCompanyLine.startsWith("-") &&
+    !/remote|hybrid|onsite|location/i.test(possibleCompanyLine)
+  ) {
+    return possibleCompanyLine;
+  }
+
+  return undefined;
+}
+
+function extractLocationText(lines: string[]) {
+  return lines.find((line) => /remote|hybrid|onsite|location|, [A-Z]{2}/i.test(line));
 }
 
 function buildStrengths(

@@ -3,11 +3,14 @@
 
 import { useState } from "react";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
+import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
 import { FitResult } from "@/components/FitResult";
 import { JobForm } from "@/components/JobForm";
 import { ResumeForm } from "@/components/ResumeForm";
 import type {
   ApplicationDocs as ApplicationDocsType,
+  ApplicationPackage,
+  ApplicationStatus,
   FitAnalysis
 } from "@/lib/types";
 
@@ -20,12 +23,15 @@ export function Workspace() {
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  const [fitResult, setFitResult] = useState<FitAnalysis | null>(null);
-  const [applicationDocs, setApplicationDocs] =
-    useState<ApplicationDocsType | null>(null);
+  const [applicationPackage, setApplicationPackage] =
+    useState<ApplicationPackage | null>(null);
+  const [status, setStatus] = useState<ApplicationStatus>("draft");
+  const [notes, setNotes] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedApplicationId, setSavedApplicationId] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
 
   async function handleResumeFileChange(file: File | null) {
     // Clear old upload messages each time the user chooses a new file.
@@ -56,7 +62,7 @@ export function Workspace() {
       if (extension === "txt") {
         // Text files can be read directly in the browser, so we use them to fill the textarea.
         const textContent = await file.text();
-        setProfileText(textContent);
+        handleProfileTextChange(textContent);
         setUploadSuccess("Text file loaded successfully. Resume text added to the form.");
         return;
       }
@@ -81,7 +87,7 @@ export function Workspace() {
           throw new Error(data.error ?? "Unable to parse the uploaded PDF.");
         }
 
-        setProfileText(data.extractedText);
+        handleProfileTextChange(data.extractedText);
         setUploadSuccess(
           data.message ?? "PDF parsed successfully. Resume text added to the form."
         );
@@ -99,46 +105,43 @@ export function Workspace() {
     }
   }
 
-  async function analyzeFit() {
-    setStatusMessage("");
-    setApplicationDocs(null);
-
-    if (!canSubmitWithCurrentResumeInput()) {
-      setStatusMessage(
-        "File selected, but this format is not parsed yet. Please paste your resume text for now."
-      );
-      return;
-    }
-
-    setIsAnalyzing(true);
-
-    try {
-      const response = await fetch("/api/analyze-job", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ profileText, jobDescription })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Failed to analyze job fit.");
-      }
-
-      setFitResult(data as FitAnalysis);
-    } catch (error) {
-      setStatusMessage(
-        error instanceof Error ? error.message : "An unexpected error occurred."
-      );
-    } finally {
-      setIsAnalyzing(false);
-    }
+  function handleProfileTextChange(value: string) {
+    setProfileText(value);
+    setApplicationPackage(null);
+    setSavedApplicationId(null);
+    setSaveMessage("");
   }
 
-  async function generateApplication() {
+  function handleJobDescriptionChange(value: string) {
+    setJobDescription(value);
+    setApplicationPackage(null);
+    setSavedApplicationId(null);
+    setSaveMessage("");
+  }
+
+  function handleDocumentsChange(
+    field: keyof ApplicationDocsType,
+    value: string
+  ) {
+    setApplicationPackage((currentPackage) => {
+      if (!currentPackage) {
+        return currentPackage;
+      }
+
+      return {
+        ...currentPackage,
+        documents: {
+          ...currentPackage.documents,
+          [field]: value
+        }
+      };
+    });
+  }
+
+  async function generateApplicationPackage() {
     setStatusMessage("");
+    setSaveMessage("");
+    setSavedApplicationId(null);
 
     if (!canSubmitWithCurrentResumeInput()) {
       setStatusMessage(
@@ -150,7 +153,7 @@ export function Workspace() {
     setIsGenerating(true);
 
     try {
-      const response = await fetch("/api/generate-application", {
+      const response = await fetch("/api/generate-application-package", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -161,10 +164,11 @@ export function Workspace() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to generate application documents.");
+        throw new Error(data.error ?? "Failed to generate the application package.");
       }
 
-      setApplicationDocs(data as ApplicationDocsType);
+      setApplicationPackage(data as ApplicationPackage);
+      setSaveMessage("Application package generated. Review the drafts, then save.");
     } catch (error) {
       setStatusMessage(
         error instanceof Error ? error.message : "An unexpected error occurred."
@@ -174,12 +178,61 @@ export function Workspace() {
     }
   }
 
+  async function saveApplication() {
+    setStatusMessage("");
+    setSaveMessage("");
+
+    if (!applicationPackage) {
+      setStatusMessage("Generate the application package before saving.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch("/api/applications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          profileText,
+          uploadedFileName,
+          jobDescription,
+          fitAnalysis: applicationPackage.fitAnalysis,
+          parsedJob: applicationPackage.parsedJob,
+          documents: applicationPackage.documents,
+          status,
+          notes
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to save the application.");
+      }
+
+      setSavedApplicationId((data as { id: string }).id);
+      setSaveMessage("Application saved to Supabase.");
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   // These booleans make the form rules easier to read and maintain.
   const hasResumeText = profileText.trim().length > 0;
   const hasResumeFile = uploadedResumeFile !== null;
   const hasJobText = jobDescription.trim().length > 0;
   const hasUsableResumeInput = hasResumeText || hasResumeFile;
   const isDisabled = !hasJobText || !hasUsableResumeInput;
+  const fitResult: FitAnalysis | null = applicationPackage?.fitAnalysis ?? null;
+  const applicationDocs: ApplicationDocsType | null =
+    applicationPackage?.documents ?? null;
 
   function canSubmitWithCurrentResumeInput() {
     // The backend endpoints still need actual resume text, so a file-only state
@@ -192,21 +245,22 @@ export function Workspace() {
       <div className="mx-auto max-w-6xl px-6 py-12">
         <header className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
-            Phase 1 MVP
+            Application Package MVP
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
-            Analyze job fit and draft application materials in one place.
+            Generate, edit, and save one complete application package.
           </h1>
           <p className="mt-4 text-base leading-7 text-stone-600">
-            Paste your background and one job description, then generate a quick
-            match score, recommendation, cover letter, and professional email.
+            Start with your resume and one job description. Then generate a truthful
+            cover letter and application email, review the fit summary if needed,
+            and save the application for tracking.
           </p>
         </header>
 
         <section className="mt-10 grid gap-6 lg:grid-cols-2">
           <ResumeForm
             value={profileText}
-            onChange={setProfileText}
+            onChange={handleProfileTextChange}
             onFileChange={handleResumeFileChange}
             isUploading={isUploading}
             uploadError={uploadError}
@@ -214,26 +268,17 @@ export function Workspace() {
             uploadedFileName={uploadedFileName}
             uploadNote={uploadNote}
           />
-          <JobForm value={jobDescription} onChange={setJobDescription} />
+          <JobForm value={jobDescription} onChange={handleJobDescriptionChange} />
         </section>
 
-        <section className="mt-6 flex flex-wrap gap-3">
+        <section className="mt-6">
           <button
             type="button"
-            onClick={analyzeFit}
-            disabled={isDisabled || isAnalyzing}
+            onClick={generateApplicationPackage}
+            disabled={isDisabled || isGenerating}
             className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
           >
-            {isAnalyzing ? "Analyzing..." : "Analyze Fit"}
-          </button>
-
-          <button
-            type="button"
-            onClick={generateApplication}
-            disabled={isDisabled || isGenerating}
-            className="rounded-xl border border-stone-300 bg-white px-5 py-3 text-sm font-semibold text-stone-800 transition hover:border-stone-400 hover:bg-stone-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
-          >
-            {isGenerating ? "Generating..." : "Generate Application"}
+            {isGenerating ? "Generating..." : "Generate Application Package"}
           </button>
         </section>
 
@@ -243,9 +288,23 @@ export function Workspace() {
           </p>
         ) : null}
 
-        <section className="mt-8 grid gap-6 xl:grid-cols-2">
-          <FitResult result={fitResult} />
-          <ApplicationDocs documents={applicationDocs} />
+        <section className="mt-8 grid gap-6">
+          <ApplicationDocs
+            documents={applicationDocs}
+            onChange={handleDocumentsChange}
+          />
+          <FitResult result={fitResult} collapsedByDefault />
+          <ApplicationSavePanel
+            status={status}
+            notes={notes}
+            onStatusChange={setStatus}
+            onNotesChange={setNotes}
+            onSave={saveApplication}
+            isSaving={isSaving}
+            isDisabled={!applicationPackage}
+            message={saveMessage}
+            savedApplicationId={savedApplicationId}
+          />
         </section>
       </div>
     </main>

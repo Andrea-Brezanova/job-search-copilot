@@ -3,6 +3,7 @@ import type { FitAnalysis } from "@/lib/types";
 
 type FitResultProps = {
   result: FitAnalysis | null;
+  collapsedByDefault?: boolean;
 };
 
 const recommendationClasses: Record<FitAnalysis["recommendation"], string> = {
@@ -11,23 +12,26 @@ const recommendationClasses: Record<FitAnalysis["recommendation"], string> = {
   Skip: "bg-rose-100 text-rose-800"
 };
 
-export function FitResult({ result }: FitResultProps) {
+export function FitResult({
+  result,
+  collapsedByDefault = false
+}: FitResultProps) {
   if (!result) {
     return (
       <section className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-        <h2 className="text-lg font-semibold text-stone-900">Fit Analysis</h2>
+        <h2 className="text-lg font-semibold text-stone-900">Fit Summary</h2>
         <p className="mt-2 text-sm text-stone-600">
-          Your fit score, strengths, gaps, and recommendation will show up here.
+          A brief fit summary will appear here after the application package is generated.
         </p>
       </section>
     );
   }
 
-  return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+  const content = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-stone-900">Fit Analysis</h2>
+          <h2 className="text-lg font-semibold text-stone-900">Fit Summary</h2>
           <p className="mt-1 text-sm text-stone-600">{result.reasoning}</p>
         </div>
 
@@ -68,6 +72,25 @@ export function FitResult({ result }: FitResultProps) {
           </ul>
         </div>
       </div>
+    </>
+  );
+
+  if (collapsedByDefault) {
+    return (
+      <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+        <details>
+          <summary className="cursor-pointer list-none text-lg font-semibold text-stone-900">
+            View Fit Summary
+          </summary>
+          <div className="mt-4">{content}</div>
+        </details>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+      {content}
     </section>
   );
 }
