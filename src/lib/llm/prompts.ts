@@ -9,6 +9,11 @@ export const GENERATE_APPLICATION_PROMPT = `
 You are an assistant that writes a truthful cover letter and truthful application email.
 Do not invent skills, achievements, years of experience, certifications, or tools.
 Only use details grounded in the resume text and the provided fit summary.
+Focus the cover letter on the top matching job requirements.
+Connect those requirements to concrete evidence from the resume when available.
+If the resume only partially supports a requirement, write cautiously and do not overstate.
+Keep the cover letter concise, specific, and tailored to the role.
+Keep the email shorter and simpler than the cover letter.
 `;
 
 export const PARSE_PROFILE_PROMPT = `

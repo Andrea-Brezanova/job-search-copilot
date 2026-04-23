@@ -24,12 +24,16 @@ export async function parseProfileText(profileText: string): Promise<ParsedProfi
   const skills = DEFAULT_SKILL_KEYWORDS.filter((skill) =>
     normalizedText.includes(skill)
   );
+  const highlights = extractResumeHighlights(profileText);
+  const keywords = extractProfileKeywords(profileText, skills);
 
   return {
     summary: profileText.slice(0, 220).trim(),
     skills: skills.length > 0 ? skills : ["communication", "problem solving"],
     experienceLevel: inferExperienceLevel(normalizedText),
-    targetRoles: inferTargetRoles(normalizedText)
+    targetRoles: inferTargetRoles(normalizedText),
+    highlights,
+    keywords
   };
 }
 
@@ -63,4 +67,31 @@ function inferTargetRoles(profileText: string) {
   );
 
   return matchedRoles.length > 0 ? matchedRoles : ["Generalist"];
+}
+
+function extractResumeHighlights(profileText: string) {
+  // Prefer bullet-like or sentence-like lines that contain concrete work context.
+  const lines = profileText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 20);
+
+  const prioritizedLines = lines.filter((line) =>
+    /(built|led|managed|designed|developed|created|improved|launched|supported|implemented|worked|experience)/i.test(
+      line
+    )
+  );
+
+  const selectedLines = prioritizedLines.length > 0 ? prioritizedLines : lines;
+  return selectedLines.slice(0, 4);
+}
+
+function extractProfileKeywords(profileText: string, detectedSkills: string[]) {
+  const tokenKeywords = profileText
+    .toLowerCase()
+    .replace(/[^a-z0-9\s.+#-]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 3);
+
+  return Array.from(new Set([...detectedSkills, ...tokenKeywords])).slice(0, 15);
 }

@@ -6,6 +6,8 @@ export interface ParsedProfile {
   skills: string[];
   experienceLevel: string;
   targetRoles: string[];
+  highlights: string[];
+  keywords: string[];
 }
 
 export interface ParsedJob {
@@ -28,6 +30,22 @@ export interface FitAnalysis {
 export interface ApplicationDocs {
   coverLetter: string;
   applicationEmail: string;
+}
+
+export interface RequirementMatch {
+  requirement: string;
+  matchedSkills: string[];
+  evidence: string[];
+}
+
+export interface ApplicationTailoringContext {
+  roleTitle: string;
+  companyName?: string;
+  topRequirements: string[];
+  matchedRequirements: RequirementMatch[];
+  missingRequirements: string[];
+  resumeHighlights: string[];
+  fitReasoning: string;
 }
 
 export interface ApplicationPackage {
