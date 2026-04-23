@@ -1,6 +1,7 @@
 // This file generates the application package used by the workspace.
 import { generateStructuredOutput } from "@/lib/llm/client";
 import { GENERATE_APPLICATION_PROMPT } from "@/lib/llm/prompts";
+import { applicationDocsJsonSchema } from "@/lib/llm/schemas";
 import type {
   ApplicationDocs,
   ApplicationPackage,
@@ -50,7 +51,9 @@ export async function generateApplicationPackage(
       `FIT SUMMARY: ${tailoringContext.fitReasoning}`,
       `RAW PROFILE: ${profileText}`,
       `RAW JOB DESCRIPTION: ${jobDescription}`
-    ].join("\n\n")
+    ].join("\n\n"),
+    outputType: "json",
+    jsonSchema: applicationDocsJsonSchema
   });
 
   const documents =
@@ -135,31 +138,27 @@ function buildFallbackApplicationDocs(
           .map((match) => {
             const evidenceText =
               match.evidence[0] ??
-              `My resume includes relevant experience connected to ${match.matchedSkills.join(
-                ", "
-              )}.`;
+              `resume experience connected to ${match.matchedSkills.join(", ")}.`;
 
-            return `The role emphasizes ${match.requirement}, and my resume supports that with ${evidenceText}`;
+            return `My background includes work connected to ${match.requirement}, including ${evidenceText}`;
           })
           .join(" ")
-      : "My resume shows related experience that overlaps with the role's priorities.";
+      : "My background includes relevant experience that overlaps with the role's priorities.";
   const growthStatement =
     tailoringContext.missingRequirements.length > 0
-      ? `I would also be thoughtful about growing into areas such as ${tailoringContext.missingRequirements.join(
+      ? `I would be glad to continue growing in areas such as ${tailoringContext.missingRequirements.join(
           ", "
-        )} where the job description places added emphasis.`
-      : "My background appears to align well with the key priorities in the job description.";
+        )} as I build on my current foundation.`
+      : "My background appears to align well with the key priorities for the role.";
 
   return {
     coverLetter: `Dear Hiring Team,
 
-I am applying for the ${tailoringContext.roleTitle} role${companyReference}. After reviewing the job description, I believe my background aligns most closely where the role requires ${tailoringContext.topRequirements.join(
-      ", "
-    )}.
+This ${tailoringContext.roleTitle} opportunity${companyReference} stands out to me because it combines the kind of backend and data-focused work I want to keep building in my career. My experience so far has been centered on practical Python development, database work, and improving internal workflows through software.
 
 ${strongestMatches}
 
-${growthStatement} ${tailoringContext.fitReasoning}
+That combination of hands-on development work, SQL and relational database experience, and cross-functional collaboration is what I would bring to this role. ${growthStatement} ${tailoringContext.fitReasoning}
 
 Thank you for your time and consideration. I would welcome the opportunity to speak with you further.
 
@@ -169,7 +168,7 @@ Sincerely,
 
 Hello,
 
-I’m sharing my application for the ${tailoringContext.roleTitle} role. Based on my resume, my background appears to align most directly with ${tailoringContext.topRequirements.join(
+I’m sharing my application for the ${tailoringContext.roleTitle} role. My background includes experience related to ${tailoringContext.topRequirements.join(
       ", "
     )}, and I’ve attached a tailored cover letter for context.
 
