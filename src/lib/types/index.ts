@@ -32,6 +32,19 @@ export interface ApplicationDocs {
   applicationEmail: string;
 }
 
+export interface ApplicationQualityNotes {
+  factsUsedFromResume: string[];
+  jobRequirementsAddressed: string[];
+  growthAreasPhrasedCarefully: string[];
+}
+
+export interface GeneratedApplicationContent {
+  coverLetter: string;
+  applicationEmail: string;
+  applicationSummary: string;
+  qualityNotes: ApplicationQualityNotes;
+}
+
 export interface RequirementMatch {
   requirement: string;
   matchedSkills: string[];
@@ -52,6 +65,8 @@ export interface ApplicationPackage {
   documents: ApplicationDocs;
   fitAnalysis: FitAnalysis;
   parsedJob: ParsedJob;
+  applicationSummary?: string;
+  qualityNotes?: ApplicationQualityNotes;
 }
 
 export interface PreferenceRecord {

@@ -1,6 +1,6 @@
 // This file documents the expected response shapes for future model calls.
-export const applicationDocsJsonSchema = {
-  name: "application_docs",
+export const generatedApplicationContentJsonSchema = {
+  name: "generated_application_content",
   schema: {
     type: "object",
     additionalProperties: false,
@@ -12,9 +12,41 @@ export const applicationDocsJsonSchema = {
       applicationEmail: {
         type: "string",
         description: "A short, professional application email."
+      },
+      applicationSummary: {
+        type: "string",
+        description: "A short summary of why the candidate is a credible fit."
+      },
+      qualityNotes: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          factsUsedFromResume: {
+            type: "array",
+            items: { type: "string" }
+          },
+          jobRequirementsAddressed: {
+            type: "array",
+            items: { type: "string" }
+          },
+          growthAreasPhrasedCarefully: {
+            type: "array",
+            items: { type: "string" }
+          }
+        },
+        required: [
+          "factsUsedFromResume",
+          "jobRequirementsAddressed",
+          "growthAreasPhrasedCarefully"
+        ]
       }
     },
-    required: ["coverLetter", "applicationEmail"]
+    required: [
+      "coverLetter",
+      "applicationEmail",
+      "applicationSummary",
+      "qualityNotes"
+    ]
   }
 } as const;
 
