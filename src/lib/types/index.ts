@@ -2,6 +2,7 @@
 export type ApplicationStatus = "draft" | "applied" | "interview" | "rejected";
 
 export interface ParsedProfile {
+  name: string;
   summary: string;
   skills: string[];
   experienceLevel: string;
@@ -38,26 +39,31 @@ export interface ApplicationQualityNotes {
   growthAreasPhrasedCarefully: string[];
 }
 
+export interface ExperienceEvidenceCard {
+  role: string;
+  organization: string;
+  context: string;
+  actions: string[];
+  outcome?: string;
+  skills: string[];
+}
+
+export interface CoverLetterInput {
+  company?: string;
+  role: string;
+  responsibilityThemes: string[];
+  primaryStory: ExperienceEvidenceCard;
+  secondaryStory?: ExperienceEvidenceCard;
+  supportedSkills: string[];
+  growthAreas: string[];
+  candidateName: string;
+  candidateEmail: string;
+}
+
 export interface GeneratedApplicationContent {
   cover_letter: string;
   email_text: string;
   application_summary: string;
-}
-
-export interface RequirementMatch {
-  requirement: string;
-  matchedSkills: string[];
-  evidence: string[];
-}
-
-export interface ApplicationTailoringContext {
-  roleTitle: string;
-  companyName?: string;
-  topRequirements: string[];
-  matchedRequirements: RequirementMatch[];
-  missingRequirements: string[];
-  resumeHighlights: string[];
-  fitReasoning: string;
 }
 
 export interface ApplicationPackage {

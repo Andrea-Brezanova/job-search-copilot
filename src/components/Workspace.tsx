@@ -11,7 +11,7 @@ import type {
   ApplicationDocs as ApplicationDocsType,
   ApplicationPackage,
   ApplicationStatus,
-  FitAnalysis
+  FitAnalysis,
 } from "@/lib/types";
 
 export function Workspace() {
@@ -25,7 +25,9 @@ export function Workspace() {
   ];
   const [profileText, setProfileText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
-  const [uploadedResumeFile, setUploadedResumeFile] = useState<File | null>(null);
+  const [uploadedResumeFile, setUploadedResumeFile] = useState<File | null>(
+    null,
+  );
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [uploadNote, setUploadNote] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -39,7 +41,9 @@ export function Workspace() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStageIndex, setGenerationStageIndex] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-  const [savedApplicationId, setSavedApplicationId] = useState<string | null>(null);
+  const [savedApplicationId, setSavedApplicationId] = useState<string | null>(
+    null,
+  );
   const [saveMessage, setSaveMessage] = useState("");
 
   useEffect(() => {
@@ -87,7 +91,9 @@ export function Workspace() {
         // Text files can be read directly in the browser, so we use them to fill the textarea.
         const textContent = await file.text();
         handleProfileTextChange(textContent);
-        setUploadSuccess("Text file loaded successfully. Resume text added to the form.");
+        setUploadSuccess(
+          "Text file loaded successfully. Resume text added to the form.",
+        );
         return;
       }
 
@@ -98,7 +104,7 @@ export function Workspace() {
 
         const response = await fetch("/api/parse-resume", {
           method: "POST",
-          body: formData
+          body: formData,
         });
 
         const data = (await response.json()) as {
@@ -113,7 +119,8 @@ export function Workspace() {
 
         handleProfileTextChange(data.extractedText);
         setUploadSuccess(
-          data.message ?? "PDF parsed successfully. Resume text added to the form."
+          data.message ??
+            "PDF parsed successfully. Resume text added to the form.",
         );
         return;
       }
@@ -122,7 +129,9 @@ export function Workspace() {
       setUploadNote("File uploaded. PDF/DOCX parsing is the next step.");
     } catch (error) {
       setUploadError(
-        error instanceof Error ? error.message : "Unable to process the uploaded file."
+        error instanceof Error
+          ? error.message
+          : "Unable to process the uploaded file.",
       );
     } finally {
       setIsUploading(false);
@@ -145,7 +154,7 @@ export function Workspace() {
 
   function handleDocumentsChange(
     field: keyof ApplicationDocsType,
-    value: string
+    value: string,
   ) {
     setApplicationPackage((currentPackage) => {
       if (!currentPackage) {
@@ -156,8 +165,8 @@ export function Workspace() {
         ...currentPackage,
         documents: {
           ...currentPackage.documents,
-          [field]: value
-        }
+          [field]: value,
+        },
       };
     });
   }
@@ -169,7 +178,7 @@ export function Workspace() {
 
     if (!canSubmitWithCurrentResumeInput()) {
       setStatusMessage(
-        "File selected, but this format is not parsed yet. Please paste your resume text for now."
+        "File selected, but this format is not parsed yet. Please paste your resume text for now.",
       );
       return;
     }
@@ -180,22 +189,28 @@ export function Workspace() {
       const response = await fetch("/api/generate-application-package", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ profileText, jobDescription })
+        body: JSON.stringify({ profileText, jobDescription }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to generate the application package.");
+        throw new Error(
+          data.error ?? "Failed to generate the application package.",
+        );
       }
 
       setApplicationPackage(data as ApplicationPackage);
-      setSaveMessage("Application package generated. Review the drafts, then save.");
+      setSaveMessage(
+        "Application package generated. Review the drafts, then save.",
+      );
     } catch (error) {
       setStatusMessage(
-        error instanceof Error ? error.message : "An unexpected error occurred."
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.",
       );
     } finally {
       setIsGenerating(false);
@@ -217,7 +232,7 @@ export function Workspace() {
       const response = await fetch("/api/applications", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           profileText,
@@ -227,8 +242,8 @@ export function Workspace() {
           parsedJob: applicationPackage.parsedJob,
           documents: applicationPackage.documents,
           status,
-          notes
-        })
+          notes,
+        }),
       });
 
       const data = await response.json();
@@ -241,7 +256,9 @@ export function Workspace() {
       setSaveMessage("Application saved to Supabase.");
     } catch (error) {
       setStatusMessage(
-        error instanceof Error ? error.message : "An unexpected error occurred."
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.",
       );
     } finally {
       setIsSaving(false);
@@ -272,12 +289,12 @@ export function Workspace() {
             Application Package MVP
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
-            Generate, edit, and save one complete application package.
+            Generate and save one complete application package.
           </h1>
           <p className="mt-4 text-base leading-7 text-stone-600">
-            Start with your resume and one job description. Then generate a truthful
-            cover letter and application email, review the fit summary if needed,
-            and save the application for tracking.
+            Start with your resume and one job description. Then generate a
+            truthful cover letter and application email and save the application
+            for tracking.
           </p>
         </header>
 
@@ -292,7 +309,10 @@ export function Workspace() {
             uploadedFileName={uploadedFileName}
             uploadNote={uploadNote}
           />
-          <JobForm value={jobDescription} onChange={handleJobDescriptionChange} />
+          <JobForm
+            value={jobDescription}
+            onChange={handleJobDescriptionChange}
+          />
         </section>
 
         <section className="mt-6">

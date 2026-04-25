@@ -11,7 +11,8 @@ type GenerateStructuredOutputParams = {
   };
 };
 
-const OPENAI_TIMEOUT_MS = 15000;
+const DEFAULT_OPENAI_MODEL = "gpt-5-mini";
+const DEFAULT_OPENAI_TIMEOUT_MS = 12000;
 
 export async function generateStructuredOutput<T>({
   prompt,
@@ -27,32 +28,40 @@ export async function generateStructuredOutput<T>({
 
   try {
     const client = new OpenAI({ apiKey });
-    const response = await Promise.race([
-      client.responses.create({
-        model: process.env.OPENAI_MODEL || "gpt-5",
-        instructions: prompt,
-        input,
-        text:
-          outputType === "json" && jsonSchema
-            ? {
-                format: {
-                  type: "json_schema",
-                  name: jsonSchema.name,
-                  schema: jsonSchema.schema
-                }
+    const model = process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+    const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || DEFAULT_OPENAI_TIMEOUT_MS);
+    const startedAt = Date.now();
+    console.log("openai-model", model);
+    console.log("openai-timeout-ms", timeoutMs);
+
+    const requestPromise = client.responses.create({
+      model,
+      instructions: prompt,
+      input,
+      text:
+        outputType === "json" && jsonSchema
+          ? {
+              format: {
+                type: "json_schema",
+                name: jsonSchema.name,
+                schema: jsonSchema.schema
               }
-            : {
-                format: {
-                  type: "text"
-                }
+            }
+          : {
+              format: {
+                type: "text"
               }
-      }),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error(`OpenAI request timed out after ${OPENAI_TIMEOUT_MS}ms`));
-        }, OPENAI_TIMEOUT_MS);
-      })
-    ]);
+            }
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`OpenAI request timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    });
+
+    const response = await Promise.race([requestPromise, timeoutPromise]);
+    console.log("openai-responses-create-ms", Date.now() - startedAt);
 
     const outputText = response.output_text?.trim();
 
@@ -66,6 +75,11 @@ export async function generateStructuredOutput<T>({
 
     return outputText as T;
   } catch (error) {
+    if (error instanceof Error && error.message.includes("timed out")) {
+      console.warn("OpenAI generation timed out");
+      return null;
+    }
+
     console.error("OpenAI generation failed", error);
     return null;
   }

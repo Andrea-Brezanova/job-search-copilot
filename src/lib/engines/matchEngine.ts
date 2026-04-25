@@ -40,24 +40,28 @@ const KNOWN_SKILLS = [
   "supabase",
   "python",
   "sql",
+  "django",
+  "git",
+  "docker",
   "node",
   "node.js",
   "api",
   "analytics",
-  "leadership",
   "product",
   "design",
-  "figma",
-  "accessibility",
   "testing",
-  "graphql",
-  "aws",
-  "docker",
-  "css",
-  "html",
-  "communication",
-  "problem solving"
+  "aws"
 ] as const;
+
+const JOB_METADATA_PATTERN =
+  /(applied\s+\d+\s+(seconds?|minutes?|hours?|days?)\s+ago|reposted|promoted|applicants?|clicked apply|actively reviewing|easy apply|matches your job preferences|hybrid|on-site|onsite|remote|full[- ]time|part[- ]time|contract|save\b|see how you compare|meet the hiring team)/i;
+
+const RESPONSIBILITY_NOISE_PATTERN =
+  /(skills match|matches your job preferences|preferred\s*-|employment type|work location|about the job|job poster|talent acquisition|message$|signature)/i;
+const RESPONSIBILITY_SECTION_PATTERN =
+  /^(key responsibilities|responsibilities|what you'll do|what you will do)\s*:?\s*$/i;
+const SECTION_HEADING_PATTERN =
+  /^(key responsibilities|responsibilities|what you'll do|what you will do|required qualifications|preferred qualifications|education|about the job|about the role|employment type|work location)\s*:?\s*$/i;
 
 type ScoreBreakdown = {
   fitScore: number;
@@ -83,32 +87,150 @@ export function analyzeParsedJobFit(
     parsedProfile,
     parsedJob
   );
-  const reasoning = buildDeterministicReasoning(parsedJob, deterministicAnalysis);
 
   return {
     ...deterministicAnalysis,
-    reasoning
+    reasoning: buildDeterministicReasoning(parsedJob, deterministicAnalysis)
   };
 }
 
 export function parseJobText(jobDescription: string): ParsedJob {
-  const lines = jobDescription
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const normalizedKeywords = extractNormalizedKeywords(jobDescription);
+  const lines = cleanJobLines(jobDescription);
+  const title = extractRoleTitle(lines);
+  const company = extractCompanyName(lines, jobDescription);
+  const responsibilities = extractResponsibilities(lines);
+  const normalizedKeywords = extractNormalizedKeywords(
+    [title, ...responsibilities, ...lines].join("\n")
+  );
   const requirements = extractRequiredSkills(lines, normalizedKeywords);
   const bonusKeywords = extractBonusKeywords(normalizedKeywords, requirements);
 
   return {
-    title: lines[0] ?? "Untitled Role",
-    company: extractCompanyName(lines),
+    title,
+    company,
     locationText: extractLocationText(lines),
-    responsibilities: lines.slice(1, 5),
+    responsibilities,
     requirements,
     keywords: [...requirements, ...bonusKeywords]
   };
+}
+
+function cleanJobLines(jobDescription: string) {
+  return jobDescription
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !JOB_METADATA_PATTERN.test(line))
+    .filter((line) => !/^\d+\s+of\s+\d+\s+skills\s+match$/i.test(line))
+    .filter((line) => !/^retry premium|message$|save$|easy apply$/i.test(line))
+    .filter((line) => !/^description:?$/i.test(line))
+    .filter((line) => !/^about the job$/i.test(line));
+}
+
+function extractRoleTitle(lines: string[]) {
+  const candidate =
+    lines.find(
+      (line) =>
+        /(developer|engineer|analyst|designer|manager|specialist|intern|consultant)/i.test(
+          line
+        ) && !/team|hiring/i.test(line)
+    ) ?? "this role";
+
+  const cleaned = candidate
+    .replace(/\s*[-|].*$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return cleaned.split(/\s+/).length > 6 || JOB_METADATA_PATTERN.test(cleaned)
+    ? "this role"
+    : cleaned;
+}
+
+function extractCompanyName(lines: string[], rawText: string) {
+  const savedPatternMatch = rawText.match(/Save .+? at ([^\n]+)/i);
+  const savedCompany = normalizeCompanyCandidate(savedPatternMatch?.[1]);
+  if (savedCompany && !JOB_METADATA_PATTERN.test(savedCompany)) {
+    return savedCompany;
+  }
+
+  const titleIndex = lines.findIndex((line) =>
+    /(developer|engineer|analyst|designer|manager|specialist|intern|consultant)/i.test(
+      line
+    )
+  );
+  const companyCandidate =
+    titleIndex >= 0 ? lines.slice(titleIndex + 1, titleIndex + 4).map(normalizeCompanyCandidate).find(isCompanyCandidate) : undefined;
+
+  return companyCandidate;
+}
+
+function normalizeCompanyCandidate(line?: string) {
+  if (!line) {
+    return undefined;
+  }
+
+  return line
+    .replace(/^about\s+/i, "")
+    .replace(/^company[:\s-]*/i, "")
+    .replace(/\s*\|\s*.*$/, "")
+    .replace(/\s*[·-]\s*(reposted|promoted|actively reviewing).*/i, "")
+    .trim();
+}
+
+function isCompanyCandidate(line?: string) {
+  if (!line) {
+    return false;
+  }
+
+  return (
+    line.length > 1 &&
+    line.length < 80 &&
+    !JOB_METADATA_PATTERN.test(line) &&
+    !RESPONSIBILITY_NOISE_PATTERN.test(line) &&
+    !/\b[A-Z]{2}\b/.test(line) &&
+    !/\b(austin|boston|new york|san francisco|seattle|remote|hybrid)\b/i.test(line) &&
+    !/preferred|work location|employment type|required qualifications|key responsibilities|skills match/i.test(
+      line
+    ) &&
+    !/developer|engineer|analyst|designer|manager|specialist|intern|consultant/i.test(line)
+  );
+}
+
+function extractResponsibilities(lines: string[]) {
+  const sectionLines = extractResponsibilitySection(lines);
+  const bulletLikeLines = sectionLines.filter((line) =>
+    /^(design|develop|build|work|support|implement|create|maintain|collaborate|establish|provide|write|automate|manage)/i.test(
+      line
+    )
+  );
+
+  return (bulletLikeLines.length > 0 ? bulletLikeLines : sectionLines)
+    .map((line) => line.replace(/^[•*-]\s*/, "").trim())
+    .filter((line) => line.length > 18)
+    .filter((line) => !RESPONSIBILITY_NOISE_PATTERN.test(line))
+    .filter((line) => !/^\d+\s+of\s+\d+\s+skills\s+match$/i.test(line))
+    .filter((line) => !/^(python developer|junior python developer)$/i.test(line))
+    .filter((line) => !/required qualifications|preferred qualifications|education/i.test(line))
+    .slice(0, 3);
+}
+
+function extractResponsibilitySection(lines: string[]) {
+  const startIndex = lines.findIndex((line) => RESPONSIBILITY_SECTION_PATTERN.test(line));
+
+  if (startIndex === -1) {
+    return [];
+  }
+
+  const sectionLines: string[] = [];
+  for (const line of lines.slice(startIndex + 1)) {
+    if (SECTION_HEADING_PATTERN.test(line)) {
+      break;
+    }
+
+    sectionLines.push(line);
+  }
+
+  return sectionLines;
 }
 
 function computeDeterministicFitAnalysis(
@@ -130,10 +252,6 @@ function computeDeterministicFitAnalysis(
     parsedJob.title
   );
 
-  // Scoring model:
-  // - up to 70 points from matching required skills
-  // - up to 20 points from matching bonus or adjacent skills
-  // - 10 points from role-title similarity
   const requiredScore = calculateWeightedScore(requiredOverlap, requiredSkills.length, 70);
   const bonusScore = calculateWeightedScore(bonusOverlap, bonusSkills.length, 20);
   const fitScore = clampScore(requiredScore + bonusScore + titleSimilarityScore);
@@ -159,7 +277,7 @@ function extractNormalizedKeywords(text: string) {
     .split(/\s+/)
     .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 
-  return Array.from(new Set([...matchedKnownSkills, ...tokenKeywords])).slice(0, 12);
+  return Array.from(new Set([...matchedKnownSkills, ...tokenKeywords])).slice(0, 16);
 }
 
 function computeOverlap(profileSkills: string[], jobSkills: string[]) {
@@ -215,42 +333,24 @@ function computeTitleSimilarityScore(profileRoles: string[], jobTitle: string) {
 
 function extractRequiredSkills(lines: string[], keywords: string[]) {
   const requirementLines = lines.filter((line) =>
-    /(require|qualification|must|need|experience|skill)/i.test(line)
+    /(require|qualification|must|need|experience|skill|proficiency)/i.test(line)
   );
-
   const requirementText = requirementLines.join(" ").toLowerCase();
   const matchedRequirementSkills = keywords.filter((keyword) =>
     requirementText.includes(keyword)
   );
 
-  if (matchedRequirementSkills.length > 0) {
-    return matchedRequirementSkills.slice(0, 6);
-  }
-
-  return keywords.slice(0, 6);
+  return matchedRequirementSkills.length > 0
+    ? matchedRequirementSkills.slice(0, 6)
+    : keywords.slice(0, 6);
 }
 
 function extractBonusKeywords(keywords: string[], requiredSkills: string[]) {
   return keywords.filter((keyword) => !requiredSkills.includes(keyword)).slice(0, 4);
 }
 
-function extractCompanyName(lines: string[]) {
-  const possibleCompanyLine = lines[1];
-
-  if (
-    possibleCompanyLine &&
-    possibleCompanyLine.length < 80 &&
-    !possibleCompanyLine.startsWith("-") &&
-    !/remote|hybrid|onsite|location/i.test(possibleCompanyLine)
-  ) {
-    return possibleCompanyLine;
-  }
-
-  return undefined;
-}
-
 function extractLocationText(lines: string[]) {
-  return lines.find((line) => /remote|hybrid|onsite|location|, [A-Z]{2}/i.test(line));
+  return lines.find((line) => /remote|hybrid|onsite|on-site|, [A-Z]{2}/i.test(line));
 }
 
 function buildStrengths(
@@ -267,11 +367,9 @@ function buildStrengths(
     strengths.push("The profile's target roles align with the job title.");
   }
 
-  if (strengths.length > 0) {
-    return strengths;
-  }
-
-  return ["The profile shows some transferable experience, but direct overlap is limited."];
+  return strengths.length > 0
+    ? strengths
+    : ["The profile shows some transferable experience, but direct overlap is limited."];
 }
 
 function buildGaps(missingRequiredSkills: string[]) {
@@ -288,25 +386,6 @@ function clampScore(score: number) {
   return Math.max(0, Math.min(100, score));
 }
 
-function buildDeterministicReasoning(
-  parsedJob: ParsedJob,
-  scoreBreakdown: ScoreBreakdown
-) {
-  const strongestMatch = scoreBreakdown.strengths[0];
-  const mainGap = scoreBreakdown.gaps[0];
-  const roleTitle = parsedJob.title || "this role";
-
-  if (strongestMatch && mainGap) {
-    return `The score reflects how closely the profile matches the main requirements for the ${roleTitle} role, with strengths such as ${lowercaseFirst(
-      strongestMatch.replace(/\.$/, "")
-    )} and a main gap around ${lowercaseFirst(mainGap.replace(/^Missing or unclear evidence for required skill:\s*/i, "").replace(/\.$/, ""))}.`;
-  }
-
-  return `The score is based on required-skill overlap, bonus-skill overlap, and role-title alignment for the ${roleTitle} position.`;
-}
-
-function lowercaseFirst(value: string) {
-  return value.length > 0
-    ? `${value.charAt(0).toLowerCase()}${value.slice(1)}`
-    : value;
+function buildDeterministicReasoning(parsedJob: ParsedJob, scoreBreakdown: ScoreBreakdown) {
+  return `The score is based on required-skill overlap, bonus-skill overlap, and title alignment for the ${parsedJob.title} role. Top strengths: ${scoreBreakdown.strengths.slice(0, 2).join(" ")}.`;
 }

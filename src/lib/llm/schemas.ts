@@ -1,5 +1,5 @@
 // This file documents the expected response shapes for future model calls.
-export const generatedApplicationContentJsonSchema = {
+export const generateApplicationContentJsonSchema = {
   name: "generated_application_content",
   schema: {
     type: "object",
