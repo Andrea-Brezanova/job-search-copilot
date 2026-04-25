@@ -1,8 +1,6 @@
 // This file compares a parsed profile against a parsed job to produce a fit result.
 // The score is always computed in code so the app does not depend on an LLM for ranking.
 import { parseProfileText } from "@/lib/engines/profileEngine";
-import { generateStructuredOutput } from "@/lib/llm/client";
-import { ANALYZE_JOB_PROMPT } from "@/lib/llm/prompts";
 import type { FitAnalysis, ParsedJob, ParsedProfile } from "@/lib/types";
 
 const STOP_WORDS = new Set([
@@ -74,15 +72,18 @@ export async function analyzeJobFit(
 ): Promise<FitAnalysis> {
   const parsedProfile = await parseProfileText(profileText);
   const parsedJob = parseJobText(jobDescription);
+  return analyzeParsedJobFit(parsedProfile, parsedJob);
+}
+
+export function analyzeParsedJobFit(
+  parsedProfile: ParsedProfile,
+  parsedJob: ParsedJob
+): FitAnalysis {
   const deterministicAnalysis = computeDeterministicFitAnalysis(
     parsedProfile,
     parsedJob
   );
-  const reasoning = await generateOptionalReasoning(
-    parsedProfile,
-    parsedJob,
-    deterministicAnalysis
-  );
+  const reasoning = buildDeterministicReasoning(parsedJob, deterministicAnalysis);
 
   return {
     ...deterministicAnalysis,
@@ -287,30 +288,25 @@ function clampScore(score: number) {
   return Math.max(0, Math.min(100, score));
 }
 
-async function generateOptionalReasoning(
-  parsedProfile: ParsedProfile,
+function buildDeterministicReasoning(
   parsedJob: ParsedJob,
   scoreBreakdown: ScoreBreakdown
 ) {
-  const llmReasoning = await generateStructuredOutput<string>({
-    prompt: ANALYZE_JOB_PROMPT,
-    input: [
-      `PROFILE SUMMARY: ${parsedProfile.summary}`,
-      `PROFILE SKILLS: ${parsedProfile.skills.join(", ")}`,
-      `TARGET ROLES: ${parsedProfile.targetRoles.join(", ")}`,
-      `JOB TITLE: ${parsedJob.title}`,
-      `JOB REQUIREMENTS: ${parsedJob.requirements.join(", ")}`,
-      `JOB KEYWORDS: ${parsedJob.keywords.join(", ")}`,
-      `FIT SCORE: ${scoreBreakdown.fitScore}`,
-      `RECOMMENDATION: ${scoreBreakdown.recommendation}`,
-      `STRENGTHS: ${scoreBreakdown.strengths.join(" | ")}`,
-      `GAPS: ${scoreBreakdown.gaps.join(" | ")}`
-    ].join("\n")
-  });
+  const strongestMatch = scoreBreakdown.strengths[0];
+  const mainGap = scoreBreakdown.gaps[0];
+  const roleTitle = parsedJob.title || "this role";
 
-  if (typeof llmReasoning === "string" && llmReasoning.trim()) {
-    return llmReasoning.trim();
+  if (strongestMatch && mainGap) {
+    return `The score reflects how closely the profile matches the main requirements for the ${roleTitle} role, with strengths such as ${lowercaseFirst(
+      strongestMatch.replace(/\.$/, "")
+    )} and a main gap around ${lowercaseFirst(mainGap.replace(/^Missing or unclear evidence for required skill:\s*/i, "").replace(/\.$/, ""))}.`;
   }
 
-  return `The score is based on required-skill overlap, bonus-skill overlap, and role-title alignment for the ${parsedJob.title} position.`;
+  return `The score is based on required-skill overlap, bonus-skill overlap, and role-title alignment for the ${roleTitle} position.`;
+}
+
+function lowercaseFirst(value: string) {
+  return value.length > 0
+    ? `${value.charAt(0).toLowerCase()}${value.slice(1)}`
+    : value;
 }

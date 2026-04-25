@@ -6,15 +6,40 @@ import type {
   ApplicationDocs,
   ApplicationPackage,
   ApplicationQualityNotes,
-  ApplicationTailoringContext,
-  FitAnalysis,
   GeneratedApplicationContent,
   ParsedJob,
-  ParsedProfile,
-  RequirementMatch
+  ParsedProfile
 } from "@/lib/types";
-import { analyzeJobFit, parseJobText } from "@/lib/engines/matchEngine";
+import { analyzeParsedJobFit, parseJobText } from "@/lib/engines/matchEngine";
 import { parseProfileText } from "@/lib/engines/profileEngine";
+
+type ResumeExperience = {
+  title: string;
+  organization: string;
+  summary: string;
+  skillsUsed: string[];
+  outcome?: string;
+};
+
+type SelectedResumeEvidence = {
+  primaryExperience?: ResumeExperience;
+  secondaryExperience?: ResumeExperience;
+  supportedSkills: string[];
+  growthAreas: string[];
+  factsUsedFromResume: string[];
+};
+
+type ProfileContact = {
+  name?: string;
+  email?: string;
+  phone?: string;
+};
+
+const APPROVED_ZOOM_CTA =
+  "I’d be happy to talk through the role in more detail or walk through my Django project over a short Zoom call.";
+
+const JOB_METADATA_PATTERN =
+  /(remote|hybrid|onsite|full[- ]time|part[- ]time|reposted|promoted|clicked apply|actively reviewing|no longer accepting|applicants?|location|berlin,\s*berlin|germany)/i;
 
 export async function generateApplicationDocs(
   profileText: string,
@@ -32,588 +57,1007 @@ export async function generateApplicationPackage(
   profileText: string,
   jobDescription: string
 ): Promise<ApplicationPackage> {
-  const [profile, job, fit] = await Promise.all([
-    parseProfileText(profileText),
-    Promise.resolve(parseJobText(jobDescription)),
-    analyzeJobFit(profileText, jobDescription)
-  ]);
-  const tailoringContext = buildApplicationTailoringContext(profile, job, fit);
+  const totalStartedAt = Date.now();
+  const parseStartedAt = Date.now();
+  const profile = await parseProfileText(profileText);
+  const job = parseJobText(jobDescription);
+  console.log("application-package-parse-ms", Date.now() - parseStartedAt);
 
-  const generationInput = buildGenerationInput(
-    tailoringContext,
+  const fitStartedAt = Date.now();
+  const fit = analyzeParsedJobFit(profile, job);
+  console.log("application-package-fit-ms", Date.now() - fitStartedAt);
+  const evidence = selectResumeEvidence(profileText, profile, job);
+  const contact = extractProfileContact(profileText);
+  const sanitizedJob = sanitizeJobContext(job);
+  console.log("application-package-llm-call-count", 1);
+  const llmContent = await generateApplicationContent(
     profileText,
-    jobDescription
+    sanitizedJob,
+    evidence,
+    profile,
+    contact
+  );
+  const documents =
+    llmContent?.documents ??
+    buildFallbackApplicationDocs(profile, sanitizedJob, evidence, contact);
+  console.log("application-package-total-ms", Date.now() - totalStartedAt);
+
+  return {
+    documents,
+    fitAnalysis: fit,
+    parsedJob: sanitizedJob,
+    applicationSummary:
+      llmContent?.applicationSummary ??
+      buildApplicationSummary(sanitizedJob, fit, evidence),
+    qualityNotes: buildQualityNotes(job, evidence)
+  };
+}
+
+function selectResumeEvidence(
+  profileText: string,
+  profile: ParsedProfile,
+  job: ParsedJob
+): SelectedResumeEvidence {
+  const experiences = extractResumeExperiences(profileText, profile, job);
+  const [primaryExperience, secondaryExperience] = experiences.slice(0, 2);
+  const experienceSkills = experiences.flatMap((experience) => experience.skillsUsed);
+  const supportedSkills = Array.from(
+    new Set([...profile.skills, ...experienceSkills])
+  ).slice(0, 7);
+  const growthAreas = selectGrowthAreas(profile, job, supportedSkills);
+  const factsUsedFromResume = [
+    primaryExperience?.summary,
+    secondaryExperience?.summary,
+    ...profile.highlights
+  ]
+    .filter((fact): fact is string => Boolean(fact))
+    .slice(0, 4);
+
+  return {
+    primaryExperience,
+    secondaryExperience,
+    supportedSkills,
+    growthAreas,
+    factsUsedFromResume
+  };
+}
+
+function extractResumeExperiences(
+  profileText: string,
+  profile: ParsedProfile,
+  job: ParsedJob
+): ResumeExperience[] {
+  const blocks = profileText
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 30);
+
+  const jobContextTokens = extractContextTokens([
+    job.title,
+    ...job.responsibilities,
+    ...job.requirements,
+    ...job.keywords
+  ]);
+
+  const experiences = blocks
+    .map((block) => buildResumeExperience(block, profile, jobContextTokens))
+    .filter((experience): experience is ResumeExperience => Boolean(experience));
+
+  return experiences.sort((left, right) => {
+    const leftScore = scoreExperience(left, jobContextTokens);
+    const rightScore = scoreExperience(right, jobContextTokens);
+    return rightScore - leftScore;
+  });
+}
+
+function buildResumeExperience(
+  block: string,
+  profile: ParsedProfile,
+  jobContextTokens: string[]
+): ResumeExperience | null {
+  const lines = block
+    .split("\n")
+    .map((line) => line.replace(/^[•*-]\s*/, "").trim())
+    .filter(Boolean);
+
+  if (lines.length === 0 || looksLikeContactBlock(lines)) {
+    return null;
+  }
+
+  const heading = lines[0];
+  const title = extractExperienceTitle(heading);
+  const organization = extractExperienceOrganization(lines);
+  const summarySource = lines.find((line, index) => index > 0 && !looksLikeMetadataLine(line));
+  const summary =
+    summarySource ??
+    lines.find((line) => /(built|designed|developed|implemented|supported|worked|validated|managed)/i.test(line)) ??
+    block.slice(0, 180);
+
+  if (!title && !organization && !summary) {
+    return null;
+  }
+
+  const blockSkillCandidates = Array.from(
+    new Set([...profile.skills, ...jobContextTokens])
+  );
+  const normalizedBlock = block.toLowerCase();
+  const skillsUsed = blockSkillCandidates.filter((skill) =>
+    normalizedBlock.includes(skill.toLowerCase())
+  );
+  const outcome = lines.find((line) =>
+    /(reduced|improved|streamlined|increased|optimized|deployed|launched)/i.test(line)
   );
 
+  return {
+    title: title || "a recent role",
+    organization: organization || "",
+    summary: cleanSummary(summary),
+    skillsUsed: skillsUsed.slice(0, 4),
+    outcome: outcome ? cleanSummary(outcome) : undefined
+  };
+}
+
+async function generateApplicationContent(
+  profileText: string,
+  job: ParsedJob,
+  evidence: SelectedResumeEvidence,
+  profile: ParsedProfile,
+  contact: ProfileContact
+) {
+  const llmInput = buildGenerationInput(
+    profileText,
+    job,
+    evidence,
+    profile,
+    contact
+  );
+  const startedAt = Date.now();
   const llmResult = await generateStructuredOutput<GeneratedApplicationContent>({
     prompt: GENERATE_APPLICATION_PROMPT,
-    input: generationInput,
+    input: llmInput,
     outputType: "json",
     jsonSchema: generatedApplicationContentJsonSchema
   });
-
-  const generatedContent = await finalizeGeneratedApplicationContent(
-    llmResult,
-    tailoringContext,
-    generationInput,
-    profileText,
-    jobDescription
+  console.log(
+    "application-section-generation-ms",
+    Date.now() - startedAt
   );
+
+  if (!llmResult?.cover_letter?.trim() || !llmResult.email_text?.trim()) {
+    return null;
+  }
 
   return {
     documents: {
-      coverLetter: generatedContent.coverLetter,
-      applicationEmail: generatedContent.applicationEmail
+      coverLetter: finalizeCoverLetter(
+        llmResult.cover_letter.trim(),
+        job,
+        contact
+      ),
+      applicationEmail: appendEmailSignatureIfMissing(
+        finalizeApplicationEmail(llmResult.email_text.trim(), job),
+        contact
+      )
     },
-    fitAnalysis: fit,
-    parsedJob: job,
-    applicationSummary: generatedContent.applicationSummary,
-    qualityNotes: generatedContent.qualityNotes
+    applicationSummary: llmResult.application_summary?.trim()
   };
-}
-
-function buildApplicationTailoringContext(
-  profile: ParsedProfile,
-  job: ParsedJob,
-  fit: FitAnalysis
-): ApplicationTailoringContext {
-  const topRequirements = job.requirements.slice(0, 3);
-  const matchedRequirements = buildRequirementMatches(profile, topRequirements);
-  const missingRequirements = topRequirements.filter(
-    (requirement) =>
-      !matchedRequirements.some((match) => match.requirement === requirement)
-  );
-
-  return {
-    roleTitle: job.title,
-    companyName: job.company,
-    topRequirements,
-    matchedRequirements,
-    missingRequirements,
-    resumeHighlights: profile.highlights.slice(0, 3),
-    fitReasoning: fit.reasoning
-  };
-}
-
-function buildRequirementMatches(
-  profile: ParsedProfile,
-  topRequirements: string[]
-) {
-  const normalizedSkills = profile.skills.map((skill) => skill.toLowerCase());
-  const normalizedHighlights = profile.highlights.map((highlight) => highlight.toLowerCase());
-
-  return topRequirements.reduce<RequirementMatch[]>((matches, requirement) => {
-    const requirementTokens = requirement
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((token) => token.length > 2);
-    const matchedSkills = normalizedSkills.filter(
-      (skill) =>
-        requirement.includes(skill) ||
-        requirementTokens.some((token) => skill.includes(token) || token.includes(skill))
-    );
-    const evidence = profile.highlights.filter((highlight, index) =>
-      requirementTokens.some((token) => normalizedHighlights[index].includes(token))
-    );
-
-    if (matchedSkills.length === 0 && evidence.length === 0) {
-      return matches;
-    }
-
-    matches.push({
-      requirement,
-      matchedSkills,
-      evidence: evidence.slice(0, 2)
-    });
-
-    return matches;
-  }, []);
 }
 
 function buildFallbackApplicationDocs(
-  tailoringContext: ApplicationTailoringContext
+  profile: ParsedProfile,
+  job: ParsedJob,
+  evidence: SelectedResumeEvidence,
+  contact: ProfileContact
 ): ApplicationDocs {
-  const greeting = tailoringContext.companyName
-    ? `Dear ${tailoringContext.companyName} Hiring Team,`
+  const greeting = job.company
+    ? `Dear ${job.company} Hiring Team,`
     : "Dear Hiring Team,";
-  const companyReference = tailoringContext.companyName
-    ? ` at ${tailoringContext.companyName}`
+  const opening = buildOpeningLine(job);
+  const primaryParagraph = buildExperienceParagraph(
+    evidence.primaryExperience,
+    "During my work"
+  );
+  const fallbackParagraph = !primaryParagraph
+    ? buildProfileSummaryParagraph(profile)
     : "";
-  const strongestMatches =
-    tailoringContext.matchedRequirements.length > 0
-      ? tailoringContext.matchedRequirements
-          .slice(0, 2)
-          .map((match) => {
-            const evidenceText =
-              match.evidence[0] ??
-              `resume experience connected to ${match.matchedSkills.join(", ")}.`;
+  const secondaryParagraph = buildSecondaryParagraph(evidence.secondaryExperience);
+  const skillsParagraph = buildSkillsParagraph(profile, evidence);
+  const closing = buildClosingParagraph();
+  const signature = buildSignature(contact);
 
-            return `My background includes work connected to ${match.requirement}, including ${evidenceText}`;
-          })
-          .join(" ")
-      : "My background includes relevant experience that overlaps with the role's priorities.";
-  const growthStatement =
-    tailoringContext.missingRequirements.length > 0
-      ? `I would be glad to continue growing in areas such as ${tailoringContext.missingRequirements.join(
-          ", "
-        )} as I build on my current foundation.`
-      : "My background appears to align well with the key priorities for the role.";
+  const coverLetterSections = [
+    greeting,
+    opening,
+    primaryParagraph,
+    fallbackParagraph,
+    secondaryParagraph,
+    skillsParagraph,
+    closing,
+    signature
+  ].filter(Boolean);
 
   return {
-    coverLetter: `${greeting}
-
-The ${tailoringContext.roleTitle} role${companyReference} matches the kind of work I want to keep building on: practical Python development, database-backed applications, and software that improves real workflows.
-
-${strongestMatches}
-
-That combination of hands-on development work, SQL and relational database experience, and cross-functional collaboration is what I would bring to this role. ${growthStatement} ${tailoringContext.fitReasoning}
-
-Thank you for your time and consideration. I would welcome the opportunity to speak with you further.
-
-Sincerely,
-[Your Name]`,
-    applicationEmail: `Subject: Application for ${tailoringContext.roleTitle}
-
-Hello${tailoringContext.companyName ? ` ${tailoringContext.companyName} Hiring Team` : ""},
-
-I’m sharing my application for the ${tailoringContext.roleTitle} role. My background includes experience related to ${tailoringContext.topRequirements.join(
-      ", "
-    )}, and I’ve attached a tailored cover letter for context.
-
-Thank you for your time. I would be glad to discuss my background further.
-
-Best,
-[Your Name]`
+    coverLetter: coverLetterSections.join("\n\n"),
+    applicationEmail: buildApplicationEmail(job, evidence, contact)
   };
 }
 
-function buildFallbackGeneratedContent(
-  tailoringContext: ApplicationTailoringContext
-): GeneratedApplicationContent {
-  const fallbackDocs = buildFallbackApplicationDocs(tailoringContext);
+function buildOpeningLine(job: ParsedJob) {
+  const role = job.title?.trim() || "this role";
+  const responsibilities = selectOpeningResponsibilities(job);
 
-  return {
-    coverLetter: fallbackDocs.coverLetter,
-    applicationEmail: fallbackDocs.applicationEmail,
-    applicationSummary: tailoringContext.fitReasoning,
-    qualityNotes: {
-      factsUsedFromResume: tailoringContext.resumeHighlights.slice(0, 3),
-      jobRequirementsAddressed: tailoringContext.topRequirements.slice(0, 3),
-      growthAreasPhrasedCarefully: tailoringContext.missingRequirements.slice(0, 3)
-    }
-  };
+  if (responsibilities.length === 0) {
+    return `I’m applying for the ${role} because it matches the kind of work I want to keep building on.`;
+  }
+
+  return `I’m applying for the ${role} because it matches the kind of work I want to keep building on: ${formatList(
+    responsibilities
+  )}.`;
+}
+
+function buildExperienceParagraph(
+  experience: ResumeExperience | undefined,
+  intro: string
+) {
+  if (!experience) {
+    return "";
+  }
+
+  const title = experience.title || "a recent role";
+  const organization = experience.organization
+    ? ` at ${experience.organization}`
+    : "";
+  const summary = toFirstPersonSentence(experience.summary);
+  const skillsSentence =
+    experience.skillsUsed.length > 0
+      ? ` This helped me build experience with ${formatList(experience.skillsUsed)}.`
+      : "";
+
+  return `${intro} as ${title}${organization}, ${summary}${skillsSentence}`;
+}
+
+function buildSecondaryParagraph(experience?: ResumeExperience) {
+  if (!experience) {
+    return "";
+  }
+
+  const title = experience.title || "another role";
+  const organization = experience.organization
+    ? ` at ${experience.organization}`
+    : "";
+  const summary = toFirstPersonSentence(experience.summary);
+  const transferableSkill = chooseTransferableSkill(experience);
+  const transferableSentence = transferableSkill
+    ? ` This strengthened my ${transferableSkill}.`
+    : "";
+
+  return `Earlier, as ${title}${organization}, ${summary}${transferableSentence}`;
+}
+
+function buildSkillsParagraph(
+  profile: ParsedProfile,
+  evidence: SelectedResumeEvidence
+) {
+  const supportedSkills = evidence.supportedSkills.length > 0
+    ? evidence.supportedSkills
+    : profile.skills;
+  const supportedSkillsSentence =
+    supportedSkills.length > 0
+      ? `I’m comfortable with ${formatList(supportedSkills)}.`
+      : `I’m comfortable building on the mix of technical and problem-solving skills reflected in my resume.`;
+  const growthAreasSentence =
+    evidence.growthAreas.length > 0
+      ? ` I’m especially interested in deepening my experience with ${formatList(
+          evidence.growthAreas
+        )}.`
+      : "";
+
+  return `${supportedSkillsSentence}${growthAreasSentence} I also use AI-assisted development tools as a learning and productivity aid, while making sure I understand and can explain the code I work on.`;
+}
+
+function buildProfileSummaryParagraph(profile: ParsedProfile) {
+  const summary = cleanSummary(profile.summary);
+
+  if (!summary) {
+    return "";
+  }
+
+  return `My background includes ${lowercaseFirst(summary)}.`;
+}
+
+function buildClosingParagraph() {
+  return "I’d be happy to talk through the role or walk through a relevant project in more detail over a short Zoom call.";
+}
+
+function buildApplicationEmail(
+  job: ParsedJob,
+  evidence: SelectedResumeEvidence,
+  contact: ProfileContact
+) {
+  const role = job.title?.trim() || "this role";
+  const greeting = job.company ? `Hello ${job.company} Hiring Team,` : "Hello,";
+  const strongestEvidence =
+    evidence.primaryExperience?.summary ||
+    evidence.factsUsedFromResume[0] ||
+    "My background includes relevant development and problem-solving experience.";
+  const signatureName = contact.name || "Your Name";
+
+  return [
+    `Subject: Application for ${role}`,
+    "",
+    greeting,
+    "",
+    `I’m applying for the ${role}. ${toSentence(cleanSummary(strongestEvidence))}`,
+    evidence.growthAreas.length > 0
+      ? `I’m especially interested in continuing to grow in ${formatList(
+          evidence.growthAreas
+        )} while contributing where my current experience is strongest.`
+      : "I’d welcome the chance to discuss how my background could support your team.",
+    "",
+    "Best regards,",
+    signatureName
+  ].join("\n");
+}
+
+function buildApplicationSummary(
+  job: ParsedJob,
+  fit: { fitScore: number },
+  evidence: SelectedResumeEvidence
+) {
+  const role = job.title?.trim() || "this role";
+  const evidenceSummary =
+    evidence.primaryExperience?.title ||
+    evidence.primaryExperience?.summary ||
+    evidence.factsUsedFromResume[0] ||
+    "the candidate's resume highlights";
+
+  return `Generated a tailored application package for the ${role} role using ${evidenceSummary}. Current fit score: ${fit.fitScore}.`;
 }
 
 function buildGenerationInput(
-  tailoringContext: ApplicationTailoringContext,
   profileText: string,
-  jobDescription: string
+  job: ParsedJob,
+  evidence: SelectedResumeEvidence,
+  profile: ParsedProfile,
+  contact: ProfileContact
 ) {
   return [
-    `ROLE TITLE: ${tailoringContext.roleTitle}`,
-    `COMPANY: ${tailoringContext.companyName ?? "Not specified"}`,
-    `TOP REQUIREMENTS: ${tailoringContext.topRequirements.join(", ")}`,
-    `MATCHED REQUIREMENTS: ${formatRequirementMatches(
-      tailoringContext.matchedRequirements
-    )}`,
-    `MISSING REQUIREMENTS: ${
-      tailoringContext.missingRequirements.join(", ") || "None identified"
-    }`,
-    `RESUME HIGHLIGHTS: ${tailoringContext.resumeHighlights.join(" | ")}`,
-    `FIT SUMMARY: ${tailoringContext.fitReasoning}`,
-    `RAW PROFILE: ${profileText}`,
-    `RAW JOB DESCRIPTION: ${jobDescription}`
+    `EXTRACTED COMPANY: ${job.company ?? ""}`,
+    `EXTRACTED ROLE: ${job.title || "this role"}`,
+    `KEY RESPONSIBILITIES: ${sanitizeResponsibilities(job.responsibilities).slice(0, 3).join(" | ")}`,
+    `SUPPORTED RESUME SKILLS: ${sanitizeSupportedSkills(evidence.supportedSkills).slice(0, 6).join(", ")}`,
+    `GROWTH AREAS: ${sanitizeGrowthAreas(evidence.growthAreas).slice(0, 2).join(", ")}`,
+    `RESUME HIGHLIGHTS: ${evidence.factsUsedFromResume.slice(0, 3).join(" | ")}`,
+    `PROFILE SUMMARY: ${profile.summary}`,
+    `CANDIDATE EMAIL: ${contact.email ?? ""}`,
+    `CANDIDATE NAME: ${contact.name ?? ""}`,
+    `RESUME CONTEXT: ${buildResumePromptContext(profileText, evidence.factsUsedFromResume)}`
   ].join("\n\n");
 }
 
-async function finalizeGeneratedApplicationContent(
-  initialContent: GeneratedApplicationContent | null,
-  tailoringContext: ApplicationTailoringContext,
-  generationInput: string,
-  profileText: string,
-  jobDescription: string
-) {
-  if (!initialContent) {
-    return buildFallbackGeneratedContent(tailoringContext);
-  }
-
-  const initialReview = reviewGeneratedApplicationDocs(
-    initialContent,
-    tailoringContext,
-    profileText,
-    jobDescription
-  );
-
-  if (initialReview.passed) {
-    return initialContent;
-  }
-
-  const revisedContent = await reviseGeneratedApplicationDocs(
-    initialContent,
-    initialReview.issues,
-    generationInput
-  );
-
-  if (!revisedContent) {
-    return initialContent;
-  }
-
-  const revisedReview = reviewGeneratedApplicationDocs(
-    revisedContent,
-    tailoringContext,
-    profileText,
-    jobDescription
-  );
-
-  if (revisedReview.passed || revisedReview.issues.length < initialReview.issues.length) {
-    return revisedContent;
-  }
-
-  return initialContent;
-}
-
-function reviewGeneratedApplicationDocs(
-  content: GeneratedApplicationContent,
-  tailoringContext: ApplicationTailoringContext,
-  profileText: string,
-  jobDescription: string
-) {
-  const issues: string[] = [];
-  const coverLetterWordCount = countWords(content.coverLetter);
-  const emailWordCount = countWords(content.applicationEmail);
-  const flaggedPhrases = findFlaggedPhrases(content.coverLetter, content.applicationEmail);
-
-  if (coverLetterWordCount < 250 || coverLetterWordCount > 350) {
-    issues.push(
-      `Keep the cover letter between 250 and 350 words. Current count: ${coverLetterWordCount}.`
-    );
-  }
-
-  if (emailWordCount < 100 || emailWordCount > 150) {
-    issues.push(
-      `Keep the email between 100 and 150 words. Current count: ${emailWordCount}.`
-    );
-  }
-
-  if (flaggedPhrases.length > 0) {
-    issues.push(
-      `Remove robotic or overly polished phrases such as: ${flaggedPhrases.join(", ")}.`
-    );
-  }
-
-  if (containsInventedCompanyClaims(content.coverLetter, jobDescription)) {
-    issues.push("Remove company claims that are not explicitly grounded in the job description.");
-  }
-
-  if (soundsExaggerated(content.coverLetter, content.applicationEmail)) {
-    issues.push("Tone down claims that exaggerate the candidate's experience or responsibility.");
-  }
-
-  if (containsGeneralizedOwnershipClaims(content.coverLetter, content.applicationEmail)) {
-    issues.push("Remove generalized ownership claims that are not explicitly supported by the resume.");
-  }
-
-  if (containsPresentTenseOverstatement(content.coverLetter, content.applicationEmail)) {
-    issues.push("Avoid present-tense phrasing that overstates the candidate's current depth of experience.");
-  }
-
-  if (!hasValidHiringTeamGreeting(content.coverLetter, tailoringContext.companyName)) {
-    issues.push(
-      tailoringContext.companyName
-        ? `Begin the cover letter with "Dear ${tailoringContext.companyName} Hiring Team,".`
-        : 'Begin the cover letter with "Dear Hiring Team,".'
-    );
-  }
-
-  if (!usesEnoughResumeEvidence(content.coverLetter, tailoringContext.resumeHighlights)) {
-    issues.push("Use at least 2 concrete resume examples in the cover letter.");
-  }
-
-  if (!connectsToJobRequirements(content.coverLetter, tailoringContext.topRequirements)) {
-    issues.push("Connect the resume more clearly to the top job requirements.");
-  }
-
-  if (hasDenseSentences(content.coverLetter) || hasDenseSentences(content.applicationEmail)) {
-    issues.push("Shorten dense sentences for readability and a more natural junior-developer tone.");
-  }
-
-  if (closingMirrorsJobDescription(content.coverLetter, jobDescription)) {
-    issues.push("Rewrite the closing so it sounds personal and does not mirror the job description too closely.");
-  }
-
-  if (hasTooManyFirstPersonSentenceStarts(content.coverLetter)) {
-    issues.push('Reduce repeated sentence openings that begin with "I" to improve flow.');
-  }
-
-  if (openingFeelsAwkward(content.coverLetter, tailoringContext.companyName)) {
-    issues.push("Rewrite the opening so it sounds more direct, practical, and grounded.");
-  }
-
-  if (
-    !qualityNotesLookReasonable(
-      content.qualityNotes,
-      tailoringContext,
-      profileText
-    )
-  ) {
-    issues.push("Align the quality notes more closely with real resume facts and job requirements.");
-  }
-
+function buildQualityNotes(
+  job: ParsedJob,
+  evidence: SelectedResumeEvidence
+): ApplicationQualityNotes {
   return {
-    passed: issues.length === 0,
-    issues
+    factsUsedFromResume: evidence.factsUsedFromResume,
+    jobRequirementsAddressed: job.requirements.slice(0, 3),
+    growthAreasPhrasedCarefully: evidence.growthAreas
   };
 }
 
-async function reviseGeneratedApplicationDocs(
-  content: GeneratedApplicationContent,
-  issues: string[],
-  generationInput: string
-) {
-  return generateStructuredOutput<GeneratedApplicationContent>({
-    prompt: GENERATE_APPLICATION_PROMPT,
-    input: [
-      generationInput,
-      "REVISION TASK:",
-      "Revise the draft below to fix the listed issues only.",
-      `ISSUES TO FIX: ${issues.join(" | ")}`,
-      `CURRENT COVER LETTER: ${content.coverLetter}`,
-      `CURRENT EMAIL: ${content.applicationEmail}`,
-      `CURRENT SUMMARY: ${content.applicationSummary}`,
-      `CURRENT QUALITY NOTES: ${JSON.stringify(content.qualityNotes)}`
-    ].join("\n\n"),
-    outputType: "json",
-    jsonSchema: generatedApplicationContentJsonSchema
-  });
+function extractProfileContact(profileText: string): ProfileContact {
+  const lines = profileText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const email = profileText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+  const phone =
+    profileText.match(/(\+?\d[\d\s().-]{7,}\d)/)?.[0]?.replace(/\s{2,}/g, " ").trim();
+  const nameLine = lines.find(
+    (line) =>
+      !line.includes("@") &&
+      !/\d/.test(line) &&
+      /^[A-Za-z][A-Za-z\s'-]{3,40}$/.test(line) &&
+      line.split(/\s+/).length >= 2
+  );
+  const normalizedName = nameLine ? normalizePersonName(nameLine, email) : undefined;
+  const fallbackName = deriveNameFromEmail(email);
+
+  return {
+    name: normalizedName && !looksLikeBrokenName(normalizedName)
+      ? normalizedName
+      : fallbackName,
+    email,
+    phone
+  };
 }
 
-function formatRequirementMatches(matches: RequirementMatch[]) {
-  if (matches.length === 0) {
-    return "No clear requirement matches were identified.";
+function sanitizeJobContext(job: ParsedJob): ParsedJob {
+  const company = isValidCompanyName(job.company) ? job.company?.trim() : undefined;
+  const title = isValidRoleTitle(job.title) ? job.title.trim() : "this role";
+
+  return {
+    ...job,
+    title,
+    company,
+    responsibilities: sanitizeResponsibilities(job.responsibilities),
+    requirements: sanitizeGrowthAreas(job.requirements).slice(0, 6),
+    keywords: sanitizeSupportedSkills(job.keywords).slice(0, 8)
+  };
+}
+
+function isValidCompanyName(company?: string) {
+  if (!company) {
+    return false;
   }
 
-  return matches
-    .map((match) => {
-      const skills = match.matchedSkills.join(", ") || "general related experience";
-      const evidence = match.evidence.join(" | ") || "No specific evidence line available.";
-      return `${match.requirement} => skills: ${skills}; evidence: ${evidence}`;
+  const normalized = company.trim();
+
+  if (!normalized || normalized.length > 80) {
+    return false;
+  }
+
+  return !JOB_METADATA_PATTERN.test(normalized);
+}
+
+function isValidRoleTitle(title?: string) {
+  if (!title) {
+    return false;
+  }
+
+  const normalized = title.trim();
+  return (
+    normalized.length > 0 &&
+    normalized.length < 120 &&
+    !JOB_METADATA_PATTERN.test(normalized)
+  );
+}
+
+function buildSignature(contact: ProfileContact) {
+  const lines = [
+    "Best regards,",
+    contact.name || "[Your Name]",
+    contact.phone,
+    contact.email
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+function appendSignatureIfMissing(text: string, contact: ProfileContact) {
+  const signature = buildSignature(contact);
+
+  if (!signature || text.includes(signature)) {
+    return text;
+  }
+
+  const normalizedText = text.trim();
+  const hasRealSignoff = /(?:best regards|kind regards|sincerely),?\s*\n/i.test(
+    normalizedText
+  );
+
+  if (hasRealSignoff) {
+    return normalizedText;
+  }
+
+  return `${normalizedText}\n\n${signature}`;
+}
+
+function appendEmailSignatureIfMissing(text: string, contact: ProfileContact) {
+  const normalizedText = text.trim();
+  const signatureName = contact.name || "Your Name";
+
+  if (normalizedText.includes(signatureName)) {
+    return normalizedText;
+  }
+
+  return `${normalizedText}\n\nBest regards,\n${signatureName}`;
+}
+
+function selectOpeningResponsibilities(job: ParsedJob) {
+  return job.responsibilities
+    .map((responsibility) => simplifyResponsibility(responsibility))
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function simplifyResponsibility(responsibility: string) {
+  const cleaned = responsibility
+    .replace(/^[•*-]\s*/, "")
+    .replace(/\.$/, "")
+    .trim();
+
+  if (!cleaned) {
+    return "";
+  }
+
+  return lowercaseFirst(cleaned);
+}
+
+function selectGrowthAreas(
+  profile: ParsedProfile,
+  job: ParsedJob,
+  supportedSkills: string[]
+) {
+  const profileTokens = new Set(
+    [...profile.skills, ...profile.keywords, ...supportedSkills].map((item) =>
+      item.toLowerCase()
+    )
+  );
+
+  return job.requirements
+    .map((requirement) => cleanGrowthArea(requirement))
+    .filter((requirement) => requirement.length > 0)
+    .filter((requirement) => {
+      const requirementTokens = requirement
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((token) => token.length > 2);
+
+      return requirementTokens.every((token) => !profileTokens.has(token));
     })
-    .join("\n");
+    .slice(0, 2);
+}
+
+function cleanGrowthArea(requirement: string) {
+  return requirement
+    .replace(/^[•*-]\s*/, "")
+    .replace(/^(required|preferred|must have|qualifications?)[:\s-]*/i, "")
+    .replace(/^(experience with|familiarity with)\s+/i, "")
+    .replace(/\.$/, "")
+    .trim();
+}
+
+function scoreExperience(experience: ResumeExperience, jobContextTokens: string[]) {
+  const experienceText = [
+    experience.title,
+    experience.organization,
+    experience.summary,
+    ...experience.skillsUsed
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return jobContextTokens.reduce((score, token) => {
+    return experienceText.includes(token) ? score + 1 : score;
+  }, 0);
+}
+
+function chooseTransferableSkill(experience: ResumeExperience) {
+  if (experience.skillsUsed.length > 0) {
+    return formatList(experience.skillsUsed.slice(0, 2));
+  }
+
+  const summary = experience.summary.toLowerCase();
+
+  if (summary.includes("debug")) {
+    return "debugging and problem solving";
+  }
+
+  if (summary.includes("data")) {
+    return "attention to data correctness";
+  }
+
+  return "communication and problem solving";
+}
+
+function extractExperienceTitle(heading: string) {
+  const parts = heading
+    .split(/[|@,-]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const likelyTitle = parts.find((part) =>
+    /(engineer|developer|analyst|intern|specialist|manager|support|designer|consultant|assistant)/i.test(
+      part
+    )
+  );
+
+  return likelyTitle || parts[0] || "";
+}
+
+function extractExperienceOrganization(lines: string[]) {
+  const candidate = lines
+    .slice(0, 3)
+    .find(
+      (line) =>
+        !looksLikeMetadataLine(line) &&
+        !/(engineer|developer|analyst|intern|specialist|manager|support|designer|consultant|assistant)/i.test(
+          line
+        ) &&
+        line.length < 80
+    );
+
+  return candidate || "";
+}
+
+function looksLikeMetadataLine(line: string) {
+  return /\b(20\d{2}|19\d{2}|present|remote|full[- ]time|part[- ]time)\b/i.test(line);
+}
+
+function looksLikeContactBlock(lines: string[]) {
+  const joined = lines.join(" ");
+  return joined.includes("@") || /linkedin|github/i.test(joined);
+}
+
+function cleanSummary(summary: string) {
+  return summary.replace(/^[•*-]\s*/, "").replace(/\s+/g, " ").trim();
+}
+
+function toFirstPersonSentence(text: string) {
+  const normalized = cleanSummary(text).replace(/\.$/, "");
+
+  if (/^i\s/i.test(normalized)) {
+    return toSentence(normalized);
+  }
+
+  if (/^(worked|built|designed|developed|implemented|supported|validated|created|managed|improved|deployed)/i.test(normalized)) {
+    return toSentence(`I ${lowercaseFirst(normalized)}`);
+  }
+
+  return toSentence(`I worked on ${lowercaseFirst(normalized)}`);
+}
+
+function toSentence(text: string) {
+  const trimmed = text.trim();
+  return trimmed.endsWith(".") ? trimmed : `${trimmed}.`;
+}
+
+function formatList(items: string[]) {
+  const cleanedItems = Array.from(
+    new Set(
+      items
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (cleanedItems.length === 0) {
+    return "";
+  }
+
+  if (cleanedItems.length === 1) {
+    return cleanedItems[0];
+  }
+
+  if (cleanedItems.length === 2) {
+    return `${cleanedItems[0]} and ${cleanedItems[1]}`;
+  }
+
+  return `${cleanedItems.slice(0, -1).join(", ")}, and ${
+    cleanedItems[cleanedItems.length - 1]
+  }`;
+}
+
+function lowercaseFirst(value: string) {
+  return value.length > 0
+    ? `${value.charAt(0).toLowerCase()}${value.slice(1)}`
+    : value;
+}
+
+function toTitleCase(value: string) {
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function normalizePersonName(value: string, email?: string) {
+  const trimmed = value.trim();
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  const shortTokenCount = tokens.filter((token) => token.length <= 2).length;
+
+  if (tokens.length >= 4 && shortTokenCount >= Math.ceil(tokens.length * 0.6)) {
+    const joined = tokens.join("").replace(/[^A-Za-z'-]/g, "");
+    const emailFirstName = deriveNameFromEmail(email)?.split(/\s+/)[0]?.toLowerCase();
+
+    if (emailFirstName && joined.toLowerCase().startsWith(emailFirstName)) {
+      const remaining = joined.slice(emailFirstName.length);
+
+      if (remaining.length >= 2) {
+        return `${toTitleCase(emailFirstName)} ${toTitleCase(remaining)}`;
+      }
+    }
+
+    return toTitleCase(joined);
+  }
+
+  return toTitleCase(trimmed.replace(/\s+/g, " "));
+}
+
+function deriveNameFromEmail(email?: string) {
+  if (!email) {
+    return undefined;
+  }
+
+  const localPart = email.split("@")[0]?.trim();
+
+  if (!localPart) {
+    return undefined;
+  }
+
+  const pieces = localPart
+    .split(/[._-]+/)
+    .map((piece) => piece.replace(/[^A-Za-z]/g, "").trim())
+    .filter((piece) => piece.length >= 2);
+
+  if (pieces.length === 0) {
+    return undefined;
+  }
+
+  return pieces.map((piece) => toTitleCase(piece)).join(" ");
+}
+
+function looksLikeBrokenName(name: string) {
+  return (
+    /[A-Z][a-z]+[A-Z][a-z]+/.test(name.replace(/\s+/g, "")) ||
+    name.split(/\s+/).some((part) => part.length === 1)
+  );
+}
+
+function extractContextTokens(values: string[]) {
+  return Array.from(
+    new Set(
+      values
+        .join(" ")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s.+#-]/g, " ")
+        .split(/\s+/)
+        .filter((token) => token.length > 3)
+    )
+  );
+}
+
+function trimForPrompt(value: string, maxLength: number) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength).trim()}...`;
+}
+
+function sanitizeResponsibilities(responsibilities: string[]) {
+  return responsibilities
+    .map((item) => item.replace(/^[•*-]\s*/, "").trim())
+    .filter((item) => item.length > 0)
+    .filter((item) => !JOB_METADATA_PATTERN.test(item))
+    .filter((item) => !/about the role|about the job|job description/i.test(item))
+    .slice(0, 3);
+}
+
+function sanitizeSupportedSkills(skills: string[]) {
+  return Array.from(
+    new Set(
+      skills
+        .map((skill) => skill.trim())
+        .filter(Boolean)
+        .filter((skill) => skill.length < 40)
+        .filter((skill) => !JOB_METADATA_PATTERN.test(skill))
+        .filter((skill) => !/required|preferred|qualification|responsibilit/i.test(skill))
+    )
+  );
+}
+
+function sanitizeGrowthAreas(growthAreas: string[]) {
+  return Array.from(
+    new Set(
+      growthAreas
+        .map((area) =>
+          area
+            .replace(/^[•*-]\s*/, "")
+            .replace(/^(required|preferred|qualifications?|responsibilities?)[:\s-]*/i, "")
+            .trim()
+        )
+        .filter(Boolean)
+        .filter((area) => !JOB_METADATA_PATTERN.test(area))
+        .filter((area) => area.length < 80)
+    )
+  ).slice(0, 2);
+}
+
+function buildResumePromptContext(profileText: string, highlights: string[]) {
+  const joinedHighlights = highlights.filter(Boolean).join(" | ");
+
+  if (joinedHighlights) {
+    return trimForPrompt(joinedHighlights, 700);
+  }
+
+  return trimForPrompt(profileText, 700);
+}
+
+function finalizeCoverLetter(
+  text: string,
+  job: ParsedJob,
+  contact: ProfileContact
+) {
+  const cleanupStartedAt = Date.now();
+  let result = appendSignatureIfMissing(text, contact);
+
+  const metadataStartedAt = Date.now();
+  result = stripJobMetadataLines(result);
+  console.log("cleanupMetadataDuration", Date.now() - metadataStartedAt);
+
+  const roleStartedAt = Date.now();
+  result = enforceExactRole(result, job.title);
+  if (!containsExactRole(result, job.title)) {
+    result = replaceOpeningWithExactRole(result, job);
+  }
+  console.log("cleanupRoleDuration", Date.now() - roleStartedAt);
+
+  const ctaStartedAt = Date.now();
+  result = enforceApprovedZoomCta(result);
+  console.log("cleanupCtaDuration", Date.now() - ctaStartedAt);
+
+  result = trimSkillListInLetter(result);
+  result = limitCoverLetterWords(result, 230);
+  result = normalizeGeneratedText(result);
+  console.log("cleanupTotalDuration", Date.now() - cleanupStartedAt);
+
+  return result;
+}
+
+function finalizeApplicationEmail(text: string, job: ParsedJob) {
+  let result = stripJobMetadataLines(text);
+  result = enforceExactRole(result, job.title);
+
+  if (!containsZoom(result)) {
+    result = `${result.trim()}\n\nI’d welcome a short Zoom call to discuss fit.`;
+  }
+
+  return normalizeGeneratedText(limitEmailWords(result, 110));
+}
+
+function stripJobMetadataLines(text: string) {
+  return text
+    .split("\n")
+    .filter((line) => !JOB_METADATA_PATTERN.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function containsExactRole(text: string, role: string) {
+  if (!role || role === "this role") {
+    return true;
+  }
+
+  return text.includes(role);
+}
+
+function enforceExactRole(text: string, role: string) {
+  if (!role || role === "this role" || text.includes(role)) {
+    return text;
+  }
+
+  const generalizedRole = role
+    .replace(/\bJunior\s+/i, "")
+    .replace(/\bSenior\s+/i, "")
+    .trim();
+
+  if (generalizedRole && text.includes(generalizedRole)) {
+    return text.replace(generalizedRole, role);
+  }
+
+  return text;
+}
+
+function replaceOpeningWithExactRole(text: string, job: ParsedJob) {
+  const paragraphs = text.split("\n\n");
+  const greetingIndex = paragraphs[0]?.startsWith("Dear ") ? 1 : 0;
+  const responsibilities = sanitizeResponsibilities(job.responsibilities);
+  const opening =
+    responsibilities.length > 0
+      ? `I’m applying for the ${job.title} because it matches the kind of work I want to keep building on: ${formatList(
+          responsibilities
+        )}.`
+      : `I’m applying for the ${job.title} because it matches the kind of work I want to keep building on.`;
+
+  if (paragraphs[greetingIndex]) {
+    paragraphs[greetingIndex] = opening;
+    return paragraphs.join("\n\n");
+  }
+
+  return text;
+}
+
+function enforceApprovedZoomCta(text: string) {
+  const paragraphs = text.split("\n\n").filter(Boolean);
+  const dedupedParagraphs = paragraphs.filter((paragraph, index) => {
+    const normalizedParagraph = paragraph.trim();
+
+    if (normalizedParagraph !== APPROVED_ZOOM_CTA) {
+      return true;
+    }
+
+    return (
+      index === paragraphs.findIndex((candidate) => candidate.trim() === APPROVED_ZOOM_CTA)
+    );
+  });
+  const signatureStart = paragraphs.findIndex((paragraph) =>
+    /best regards|sincerely|kind regards/i.test(paragraph)
+  );
+  const workingParagraphs = dedupedParagraphs;
+  const workingSignatureStart = workingParagraphs.findIndex((paragraph) =>
+    /best regards|sincerely|kind regards/i.test(paragraph)
+  );
+  const insertIndex =
+    workingSignatureStart > 0
+      ? workingSignatureStart - 1
+      : workingParagraphs.length - 1;
+
+  if (insertIndex >= 0) {
+    workingParagraphs[insertIndex] = APPROVED_ZOOM_CTA;
+  } else {
+    workingParagraphs.push(APPROVED_ZOOM_CTA);
+  }
+
+  return workingParagraphs.join("\n\n");
+}
+
+function containsZoom(text: string) {
+  return /zoom/i.test(text);
+}
+
+function trimSkillListInLetter(text: string) {
+  return text.replace(
+    /(I[’']?m comfortable with\s+)([^.]+)\./i,
+    (_, prefix: string, skills: string) => {
+      const trimmedSkills = sanitizeSupportedSkills(skills.split(",")).slice(0, 5);
+      return `${prefix}${formatList(trimmedSkills)}.`;
+    }
+  );
+}
+
+function limitCoverLetterWords(text: string, maxWords: number) {
+  const words = text.trim().split(/\s+/);
+
+  if (words.length <= maxWords) {
+    return text;
+  }
+
+  const signatureMatch = text.match(/\n\n(Best regards,[\s\S]*)$/);
+  const signature = signatureMatch?.[1] ?? "";
+  const body = signature ? text.replace(/\n\n(Best regards,[\s\S]*)$/, "") : text;
+  const paragraphs = body.split("\n\n").filter(Boolean);
+
+  for (let index = paragraphs.length - 1; index >= 0; index -= 1) {
+    if (
+      !/Dear |I’m applying|Best regards|Sincerely|Kind regards/i.test(paragraphs[index]) &&
+      countWords(`${paragraphs.join("\n\n")}${signature ? `\n\n${signature}` : ""}`) > maxWords
+    ) {
+      paragraphs.splice(index, 1);
+    }
+  }
+
+  const trimmedBody = paragraphs.join("\n\n");
+  return signature ? `${trimmedBody}\n\n${signature}` : trimmedBody;
 }
 
 function countWords(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function findFlaggedPhrases(...texts: string[]) {
-  const combinedText = texts.join(" ").toLowerCase();
-  const flaggedPhrases = [
-    "the role emphasizes",
-    "i am excited to apply",
-    "high-volume decisions",
-    "product awareness",
-    "company promise",
-    "services roadmap",
-    "qa-informed rigor to reliability",
-    "end-to-end",
-    "ship fast"
-  ];
+function limitEmailWords(text: string, maxWords: number) {
+  const words = text.trim().split(/\s+/);
 
-  return flaggedPhrases.filter((phrase) => combinedText.includes(phrase));
-}
-
-function containsInventedCompanyClaims(text: string, jobDescription: string) {
-  const normalizedText = text.toLowerCase();
-  const normalizedJobDescription = jobDescription.toLowerCase();
-  const riskyCompanyClaims = ["mission", "promise", "culture", "roadmap", "future of work"];
-
-  return riskyCompanyClaims.some(
-    (claim) =>
-      normalizedText.includes(claim) && !normalizedJobDescription.includes(claim)
-  );
-}
-
-function soundsExaggerated(...texts: string[]) {
-  const combinedText = texts.join(" ").toLowerCase();
-  const exaggeratedPhrases = [
-    "owned end-to-end",
-    "production-scale",
-    "ship reliably",
-    "leadership",
-    "strategic impact"
-  ];
-
-  return exaggeratedPhrases.some((phrase) => combinedText.includes(phrase));
-}
-
-function containsGeneralizedOwnershipClaims(...texts: string[]) {
-  const combinedText = texts.join(" ").toLowerCase();
-  const ownershipPhrases = [
-    "from requirements to a working feature",
-    "from requirements through production",
-    "end-to-end",
-    "owned",
-    "took ownership of",
-    "drove delivery",
-    "adopted in daily work",
-    "seeing changes through to deployment",
-    "work independently on scoped tasks",
-    "delivered a tool"
-  ];
-
-  return ownershipPhrases.some((phrase) => combinedText.includes(phrase));
-}
-
-function containsPresentTenseOverstatement(...texts: string[]) {
-  const combinedText = texts.join(" ").toLowerCase();
-  const presentTensePhrases = [
-    "i work daily with",
-    "i regularly build",
-    "i specialize in",
-    "i lead",
-    "i ship reliably",
-    "i bring a rigor"
-  ];
-
-  return presentTensePhrases.some((phrase) => combinedText.includes(phrase));
-}
-
-function usesEnoughResumeEvidence(
-  coverLetter: string,
-  resumeHighlights: string[]
-) {
-  const normalizedCoverLetter = coverLetter.toLowerCase();
-  let evidenceMatches = 0;
-
-  for (const highlight of resumeHighlights) {
-    const significantTokens = highlight
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((token) => token.length > 5);
-
-    if (significantTokens.some((token) => normalizedCoverLetter.includes(token))) {
-      evidenceMatches += 1;
-    }
+  if (words.length <= maxWords) {
+    return text;
   }
 
-  return evidenceMatches >= 2 || resumeHighlights.length < 2;
-}
+  const lines = text.split("\n").filter(Boolean);
+  const trimmedLines = lines.filter((line) => !/^I’d welcome a short Zoom call/i.test(line));
+  const trimmedText = trimmedLines.join("\n");
 
-function connectsToJobRequirements(
-  coverLetter: string,
-  requirements: string[]
-) {
-  const normalizedCoverLetter = coverLetter.toLowerCase();
-  const addressedRequirements = requirements.filter((requirement) => {
-    const tokens = requirement
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((token) => token.length > 3);
-
-    return tokens.some((token) => normalizedCoverLetter.includes(token));
-  });
-
-  return addressedRequirements.length >= Math.min(2, requirements.length);
-}
-
-function hasDenseSentences(text: string) {
-  const sentences = text
-    .split(/[.!?]+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-
-  return sentences.some((sentence) => countWords(sentence) > 32);
-}
-
-function hasValidHiringTeamGreeting(text: string, companyName?: string) {
-  const firstLine = text.trim().split("\n")[0]?.trim() ?? "";
-
-  if (companyName) {
-    return (
-      firstLine === `Dear ${companyName} Hiring Team,` ||
-      firstLine === "Dear Hiring Team,"
-    );
+  if (countWords(trimmedText) <= maxWords) {
+    return trimmedText;
   }
 
-  return firstLine === "Dear Hiring Team,";
+  return words.slice(0, maxWords).join(" ");
 }
 
-function hasTooManyFirstPersonSentenceStarts(text: string) {
-  const sentences = text
-    .split(/[.!?]+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-
-  const firstPersonStarts = sentences.filter((sentence) =>
-    sentence.startsWith("I ") || sentence.startsWith("I’m ") || sentence.startsWith("I've ")
-  ).length;
-
-  return sentences.length > 0 && firstPersonStarts / sentences.length > 0.45;
-}
-
-function openingFeelsAwkward(text: string, companyName?: string) {
-  const paragraphs = text
-    .split("\n\n")
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-  const openingParagraph = paragraphs[1] ?? "";
-  const normalizedOpening = openingParagraph.toLowerCase();
-  const awkwardPhrases = [
-    "focus on real",
-    "where i'm headed",
-    "promise to let",
-    "matches where i'm headed",
-    "high-volume decisions"
-  ];
-
-  if (awkwardPhrases.some((phrase) => normalizedOpening.includes(phrase))) {
-    return true;
-  }
-
-  if (!companyName) {
-    return false;
-  }
-
-  return normalizedOpening.startsWith(`${companyName.toLowerCase()}'s`);
-}
-
-function closingMirrorsJobDescription(
-  coverLetter: string,
-  jobDescription: string
-) {
-  const coverLetterParagraphs = coverLetter
-    .split("\n\n")
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-  const closingParagraph = coverLetterParagraphs[coverLetterParagraphs.length - 2] ?? "";
-  const closingText = closingParagraph.toLowerCase();
-  const normalizedJobDescription = jobDescription.toLowerCase();
-  const mirroredPhrases = [
-    "senior python engineers",
-    "ships fast",
-    "production backend",
-    "real python at scale",
-    "data pipelines"
-  ];
-
-  return mirroredPhrases.some(
-    (phrase) =>
-      closingText.includes(phrase) && normalizedJobDescription.includes(phrase)
-  );
-}
-
-function qualityNotesLookReasonable(
-  qualityNotes: ApplicationQualityNotes,
-  tailoringContext: ApplicationTailoringContext,
-  profileText: string
-) {
-  const normalizedProfileText = profileText.toLowerCase();
-  const factsAreGrounded = qualityNotes.factsUsedFromResume.every((fact) =>
-    normalizedProfileText.includes(fact.toLowerCase())
-  );
-  const requirementsAreRelevant = qualityNotes.jobRequirementsAddressed.every(
-    (requirement) => tailoringContext.topRequirements.includes(requirement)
-  );
-
-  return factsAreGrounded && requirementsAreRelevant;
+function normalizeGeneratedText(text: string) {
+  return text.replace(/\n{3,}/g, "\n\n").trim();
 }

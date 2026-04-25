@@ -35,6 +35,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const startedAt = Date.now();
     const body = (await request.json()) as {
       profileText?: string;
       uploadedFileName?: string | null;
@@ -67,7 +68,10 @@ export async function POST(request: Request) {
       );
     }
 
+    const parseStartedAt = Date.now();
     const parsedResume = await parseProfileText(body.profileText);
+    console.log("application-save-parse-ms", Date.now() - parseStartedAt);
+    const saveStartedAt = Date.now();
     const savedApplication = await saveGeneratedApplication({
       userId: null,
       resumeFileName: body.uploadedFileName ?? null,
@@ -81,6 +85,8 @@ export async function POST(request: Request) {
       status: body.status ?? "draft",
       notes: body.notes ?? null
     });
+    console.log("application-save-db-ms", Date.now() - saveStartedAt);
+    console.log("application-save-total-ms", Date.now() - startedAt);
 
     return NextResponse.json(savedApplication, { status: 201 });
   } catch (error) {

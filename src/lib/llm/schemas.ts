@@ -5,48 +5,20 @@ export const generatedApplicationContentJsonSchema = {
     type: "object",
     additionalProperties: false,
     properties: {
-      coverLetter: {
+      cover_letter: {
         type: "string",
         description: "A tailored, truthful cover letter."
       },
-      applicationEmail: {
+      email_text: {
         type: "string",
         description: "A short, professional application email."
       },
-      applicationSummary: {
+      application_summary: {
         type: "string",
         description: "A short summary of why the candidate is a credible fit."
-      },
-      qualityNotes: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          factsUsedFromResume: {
-            type: "array",
-            items: { type: "string" }
-          },
-          jobRequirementsAddressed: {
-            type: "array",
-            items: { type: "string" }
-          },
-          growthAreasPhrasedCarefully: {
-            type: "array",
-            items: { type: "string" }
-          }
-        },
-        required: [
-          "factsUsedFromResume",
-          "jobRequirementsAddressed",
-          "growthAreasPhrasedCarefully"
-        ]
       }
     },
-    required: [
-      "coverLetter",
-      "applicationEmail",
-      "applicationSummary",
-      "qualityNotes"
-    ]
+    required: ["cover_letter", "email_text", "application_summary"]
   }
 } as const;
 

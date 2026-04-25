@@ -39,10 +39,9 @@ export interface ApplicationQualityNotes {
 }
 
 export interface GeneratedApplicationContent {
-  coverLetter: string;
-  applicationEmail: string;
-  applicationSummary: string;
-  qualityNotes: ApplicationQualityNotes;
+  cover_letter: string;
+  email_text: string;
+  application_summary: string;
 }
 
 export interface RequirementMatch {

@@ -1,7 +1,7 @@
 // This file coordinates the homepage UI and API calls for the MVP flow.
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
 import { FitResult } from "@/components/FitResult";
@@ -15,6 +15,14 @@ import type {
 } from "@/lib/types";
 
 export function Workspace() {
+  const generationStages = [
+    "Reading your resume...",
+    "Reading the job description...",
+    "Extracting key skills and responsibilities...",
+    "Matching your background to the role...",
+    "Drafting your cover letter and email...",
+    "Still drafting your application package..."
+  ];
   const [profileText, setProfileText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [uploadedResumeFile, setUploadedResumeFile] = useState<File | null>(null);
@@ -29,9 +37,25 @@ export function Workspace() {
   const [notes, setNotes] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStageIndex, setGenerationStageIndex] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [savedApplicationId, setSavedApplicationId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setGenerationStageIndex(0);
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setGenerationStageIndex((currentIndex) =>
+        Math.min(currentIndex + 1, generationStages.length - 1)
+      );
+    }, 1600);
+
+    return () => window.clearInterval(intervalId);
+  }, [generationStages.length, isGenerating]);
 
   async function handleResumeFileChange(file: File | null) {
     // Clear old upload messages each time the user chooses a new file.
@@ -280,6 +304,12 @@ export function Workspace() {
           >
             {isGenerating ? "Generating..." : "Generate Application Package"}
           </button>
+
+          {isGenerating ? (
+            <p className="mt-3 text-sm text-stone-600">
+              {generationStages[generationStageIndex]}
+            </p>
+          ) : null}
         </section>
 
         {statusMessage ? (
