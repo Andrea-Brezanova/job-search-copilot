@@ -22,7 +22,16 @@ type ProfileContact = {
 };
 
 const APPROVED_ZOOM_CTA =
-  "I’d be happy to talk through the role in more detail or walk through my Django project over a short Zoom call.";
+  "I’d be happy to discuss the role in more detail or walk you through my Django project over a short Zoom call.";
+
+const APPROVED_EMAIL_CTA_QUESTION =
+  "Would you be available for a short Zoom call this week to discuss the role?";
+
+const APPROVED_EMAIL_CTA_VALUE =
+  "I’d be happy to walk you through my project and learn more about your team.";
+
+const APPROVED_EMAIL_ATTACHMENT_LINE =
+  "I’ve attached my cover letter and resume for your consideration.";
 
 const JOB_METADATA_PATTERN =
   /(reposted|promoted|applicants?|clicked apply|actively reviewing|easy apply|matches your job preferences|hybrid|on-site|onsite|remote|full[- ]time|part[- ]time|contract|save\b|see how you compare|meet the hiring team|show more options)/i;
@@ -577,16 +586,7 @@ function buildFallbackDocuments(input: CoverLetterInput): ApplicationDocs {
         .filter(Boolean)
         .join("\n\n")
     ),
-    applicationEmail: normalizeGeneratedText(
-      [
-        input.company ? `Hello ${input.company} Hiring Team,` : "Hello,",
-        "",
-        `I’m applying for the ${input.role}. ${summarizePrimaryStory(input.primaryStory)}`,
-        APPROVED_ZOOM_CTA,
-        "",
-        buildSignature(input)
-      ].join("\n")
-    )
+    applicationEmail: buildDeterministicEmail(input)
   };
 }
 
@@ -644,12 +644,18 @@ function finalizeCoverLetter(text: string, input: CoverLetterInput) {
 }
 
 function finalizeEmail(text: string, input: CoverLetterInput) {
-  let result = normalizeGeneratedText(text);
-  result = stripJobMetadata(result);
-  result = removeDuplicateSentences(result);
-  result = ensureZoomCta(result);
-  result = ensureSignature(result, input);
-  return normalizeTechnologyCapitalization(result);
+  const cleaned = normalizeTechnologyCapitalization(
+    ensureSignature(
+      ensureEmailZoomCta(
+        removeDuplicateSentences(stripJobMetadata(normalizeGeneratedText(text)))
+      ),
+      input
+    )
+  );
+
+  return validateEmailStructure(cleaned, input)
+    ? limitEmailWords(cleaned, 100)
+    : buildDeterministicEmail(input);
 }
 
 function ensureZoomCta(text: string) {
@@ -658,6 +664,14 @@ function ensureZoomCta(text: string) {
   }
 
   return `${text}\n\n${APPROVED_ZOOM_CTA}`;
+}
+
+function ensureEmailZoomCta(text: string) {
+  if (text.includes(APPROVED_EMAIL_CTA_QUESTION) && text.includes(APPROVED_EMAIL_CTA_VALUE)) {
+    return text;
+  }
+
+  return `${text}\n\n${APPROVED_EMAIL_CTA_QUESTION} ${APPROVED_EMAIL_CTA_VALUE}`;
 }
 
 function ensureSignature(text: string, input: CoverLetterInput) {
@@ -685,6 +699,29 @@ function buildSignature(input: CoverLetterInput) {
   return ["Best regards,", input.candidateName, input.candidateEmail]
     .filter(Boolean)
     .join("\n");
+}
+
+function buildDeterministicEmail(input: CoverLetterInput) {
+  const greetingName = extractGreetingName(input.company);
+  const greeting = greetingName ? `Hello ${greetingName},` : "Hello Hiring Team,";
+  const roleLine = `I’m applying for the ${ensureRoleHasRoleWord(input.role)}.`;
+
+  return limitEmailWords(
+    normalizeTechnologyCapitalization(
+      normalizeGeneratedText(
+        [
+          greeting,
+          "",
+          `${roleLine} ${APPROVED_EMAIL_ATTACHMENT_LINE}`.trim(),
+          "",
+          `${APPROVED_EMAIL_CTA_QUESTION} ${APPROVED_EMAIL_CTA_VALUE}`,
+          "",
+          buildSignature(input)
+        ].join("\n")
+      )
+    ),
+    100
+  );
 }
 
 function buildApplicationSummary(input: CoverLetterInput) {
@@ -850,7 +887,12 @@ function toPlainLanguageResponsibility(line: string) {
 
 function buildOpeningSentence(input: CoverLetterInput) {
   const role = input.role === "this role" ? "role" : input.role;
-  return `I’m applying for the ${role} because it aligns with the kind of work I want to build on, especially developing backend tools and working with database-driven systems.`;
+  return `I’m applying for the ${role} role because it aligns with the kind of work I want to build on, especially developing backend tools and working with database-driven systems.`;
+}
+
+function ensureRoleHasRoleWord(role: string) {
+  const cleanedRole = role === "this role" ? "role" : role;
+  return /\brole\b/i.test(cleanedRole) ? cleanedRole : `${cleanedRole} role`;
 }
 
 function cleanSentence(value: string) {
@@ -918,6 +960,32 @@ function normalizeTechnologyCapitalization(text: string) {
     .replace(/\bpostgresql\b/g, "PostgreSQL");
 }
 
+function validateEmailStructure(text: string, input: CoverLetterInput) {
+  const greetingValid =
+    /^Hello [A-Z][a-z]+(?: [A-Z][a-z]+)?,/m.test(text) ||
+    /^Hello Hiring Team,/m.test(text);
+  const noMixedGreeting = !/^Hello .*Hiring Team,/m.test(text) || /^Hello Hiring Team,/m.test(text);
+  const hasRoleLine = text.includes(`I’m applying for the ${ensureRoleHasRoleWord(input.role)}.`);
+  const hasAttachmentLine = text.includes(APPROVED_EMAIL_ATTACHMENT_LINE);
+  const hasZoomCta =
+    text.includes(APPROVED_EMAIL_CTA_QUESTION) &&
+    text.includes(APPROVED_EMAIL_CTA_VALUE);
+  const signatureCount =
+    (text.match(new RegExp(escapeRegExp(input.candidateName), "g"))?.length || 0) <= 1 &&
+    (text.match(new RegExp(escapeRegExp(input.candidateEmail), "g"))?.length || 0) <= 1;
+
+  return greetingValid && noMixedGreeting && hasRoleLine && hasAttachmentLine && hasZoomCta && signatureCount;
+}
+
+function limitEmailWords(text: string, maxWords: number) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return text;
+  }
+
+  return words.slice(0, maxWords).join(" ").replace(/\s+Best regards,$/, "") + "\n\nBest regards,\n" + text.split("\n").slice(-2).join("\n");
+}
+
 function extractContextTokens(values: string[]) {
   return Array.from(
     new Set(
@@ -941,6 +1009,29 @@ function deriveNameFromEmail(email: string) {
     .split(/[._-]+/)
     .map((part) => toTitleCase(part))
     .join(" ");
+}
+
+function extractGreetingName(company?: string) {
+  if (!company) {
+    return "";
+  }
+
+  const normalized = company.trim();
+
+  if (
+    JOB_METADATA_PATTERN.test(normalized) ||
+    /\b(inc|llc|ltd|corp|technologies|services|solutions|systems|group|company|federal)\b/i.test(
+      normalized
+    )
+  ) {
+    return "";
+  }
+
+  return /^[A-Z][a-z]+(?: [A-Z][a-z]+)?$/.test(normalized) ? normalized : "";
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function extractFullNameFromResume(profileText: string) {

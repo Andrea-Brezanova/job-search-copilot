@@ -40,7 +40,7 @@ RULES:
 STRUCTURE:
 1. Greeting
 2. Opening:
-"I’m applying for the [role] because it aligns with the kind of work I want to build on, especially developing backend tools and working with database-driven systems."
+"I’m applying for the [role] role because it aligns with the kind of work I want to build on, especially developing backend tools and working with database-driven systems."
 3. Primary story paragraph:
 - 3 to 4 sentences
 - start with "During my internship at [organization], I..."
@@ -51,18 +51,27 @@ STRUCTURE:
 - start with "Earlier, as [role] at [organization], I..."
 - focus on SQL, debugging, collaboration, data validation, communication, or problem-solving when supported
 5. Closing with this exact sentence:
-"I’d be happy to talk through the role in more detail or walk through my Django project over a short Zoom call."
+"I’d be happy to discuss the role in more detail or walk you through my Django project over a short Zoom call."
 6. Signature:
 Best regards,
 [Name]
 [Email]
 
 EMAIL:
-- 70–110 words
+- 70–100 words
 - simple and natural
-- mention role and strongest fit
-- include the same Zoom CTA
-- signature once only
+- use this structure:
+  1. greeting
+  2. "I’m applying for the [Role] role."
+  3. "I’ve attached my cover letter and resume for your consideration."
+  4. "Would you be available for a short Zoom call this week to discuss the role?"
+  5. "I’d be happy to walk you through my project and learn more about your team."
+  5. signature once only
+- do not copy full sentences from the cover letter
+- do not include a project or experience sentence in the email body
+- do not include a skills list
+- do not reuse the cover letter CTA
+- do not use vague phrasing like "talk through the role" or "I’d be happy to connect"
 
 APPLICATION SUMMARY:
 - 1 to 2 short sentences
