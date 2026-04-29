@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
 import { FitResult } from "@/components/FitResult";
@@ -15,6 +16,7 @@ import type {
 } from "@/lib/types";
 
 export function Workspace() {
+  const router = useRouter();
   const generationStages = [
     "Reading your resume...",
     "Reading the job description...",
@@ -255,6 +257,7 @@ export function Workspace() {
 
       setSavedApplicationId((data as { id: string }).id);
       setSaveMessage("Application saved to Supabase.");
+      router.push("/applications");
     } catch (error) {
       setStatusMessage(
         error instanceof Error
@@ -346,25 +349,46 @@ export function Workspace() {
           </p>
         ) : null}
 
-        <section className="mt-8 grid gap-6">
-          <ApplicationDocs
-            documents={applicationDocs}
-            exportFileBaseName={exportFileBaseName}
-            onChange={handleDocumentsChange}
-          />
-          <FitResult result={fitResult} collapsedByDefault />
-          <ApplicationSavePanel
-            status={status}
-            notes={notes}
-            onStatusChange={setStatus}
-            onNotesChange={setNotes}
-            onSave={saveApplication}
-            isSaving={isSaving}
-            isDisabled={!applicationPackage}
-            message={saveMessage}
-            savedApplicationId={savedApplicationId}
-          />
-        </section>
+        {applicationPackage ? (
+          <section className="mt-8 grid gap-6">
+            <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-stone-900">
+                    Generated package
+                  </h2>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Review your drafts, make any edits you want, then save this
+                    package to track it in your Applications view.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <ApplicationDocs
+                  documents={applicationDocs}
+                  exportFileBaseName={exportFileBaseName}
+                  onChange={handleDocumentsChange}
+                />
+              </div>
+            </section>
+
+            <ApplicationSavePanel
+              status={status}
+              notes={notes}
+              onStatusChange={setStatus}
+              onNotesChange={setNotes}
+              onSave={saveApplication}
+              isSaving={isSaving}
+              isDisabled={!applicationPackage}
+              message={saveMessage}
+              savedApplicationId={savedApplicationId}
+              saveButtonLabel="Save this package"
+            />
+
+            <FitResult result={fitResult} collapsedByDefault />
+          </section>
+        ) : null}
       </div>
     </main>
   );

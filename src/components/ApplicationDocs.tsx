@@ -19,6 +19,7 @@ export function ApplicationDocs({
   onChange,
 }: ApplicationDocsProps) {
   const [emailCopyMessage, setEmailCopyMessage] = useState("");
+  const [coverLetterCopyMessage, setCoverLetterCopyMessage] = useState("");
 
   if (!documents) {
     return (
@@ -54,6 +55,17 @@ export function ApplicationDocs({
     }
   }
 
+  async function handleCopyCoverLetter() {
+    try {
+      await navigator.clipboard.writeText(currentDocuments.coverLetter);
+      setCoverLetterCopyMessage("Cover letter copied.");
+      window.setTimeout(() => setCoverLetterCopyMessage(""), 2000);
+    } catch {
+      setCoverLetterCopyMessage("Unable to copy cover letter.");
+      window.setTimeout(() => setCoverLetterCopyMessage(""), 2000);
+    }
+  }
+
   function handleExportDoc() {
     const blob = new Blob([buildWordDocument(currentDocuments.coverLetter)], {
       type: "application/msword",
@@ -79,35 +91,41 @@ export function ApplicationDocs({
     doc.setFont("times", "normal");
     doc.setFontSize(11.5);
 
-    const paragraphs = getLetterParagraphs(currentDocuments.coverLetter);
+    const blocks = getLetterBlocks(currentDocuments.coverLetter);
 
-    paragraphs.forEach((paragraph, paragraphIndex) => {
-      const lines = doc.splitTextToSize(paragraph.text, contentWidth) as string[];
+    blocks.forEach((block, blockIndex) => {
+      block.lines.forEach((blockLine, blockLineIndex) => {
+        const lines = doc.splitTextToSize(blockLine.text, contentWidth) as string[];
 
-      lines.forEach((line, lineIndex) => {
-        if (cursorY > pageHeight - marginY) {
-          doc.addPage();
-          cursorY = marginY;
+        lines.forEach((line, lineIndex) => {
+          if (cursorY > pageHeight - marginY) {
+            doc.addPage();
+            cursorY = marginY;
+          }
+
+          const isLastWrappedLine = lineIndex === lines.length - 1;
+          writePdfLine(
+            doc,
+            line,
+            marginX,
+            cursorY,
+            contentWidth,
+            isLastWrappedLine,
+            blockLine.align
+          );
+          cursorY += lineHeight;
+        });
+
+        if (blockLineIndex < block.lines.length - 1) {
+          cursorY += 2;
         }
-
-        const isLastLine = lineIndex === lines.length - 1;
-        writePdfLine(
-          doc,
-          line,
-          marginX,
-          cursorY,
-          contentWidth,
-          isLastLine,
-          paragraph.align
-        );
-        cursorY += lineHeight;
       });
 
-      if (paragraphIndex < paragraphs.length - 1) {
+      if (blockIndex < blocks.length - 1) {
         cursorY += paragraphGap;
       }
     });
-
+ 
     doc.save(`${baseFileName}.pdf`);
   }
 
@@ -115,22 +133,43 @@ export function ApplicationDocs({
     <section className="grid gap-6 lg:grid-cols-2">
       <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-stone-900">Cover Letter</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-stone-900">Cover Letter</h2>
+            {coverLetterCopyMessage ? (
+              <p className="mt-1 text-xs text-stone-500">{coverLetterCopyMessage}</p>
+            ) : null}
+          </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={handleExportPdf}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
+              onClick={handleCopyCoverLetter}
+              aria-label="Copy cover letter"
+              title="Copy cover letter"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
             >
-              Export PDF
+              <span aria-hidden="true" className="text-base leading-none">⧉</span>
             </button>
-            <button
-              type="button"
-              onClick={handleExportDoc}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
-            >
-              Export DOC
-            </button>
+            <details className="relative">
+              <summary className="list-none rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 cursor-pointer">
+                Export
+              </summary>
+              <div className="absolute right-0 z-10 mt-2 min-w-[140px] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+                >
+                  Export as PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportDoc}
+                  className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+                >
+                  Export as DOC
+                </button>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -153,9 +192,11 @@ export function ApplicationDocs({
           <button
             type="button"
             onClick={handleCopyEmail}
-            className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
+            aria-label="Copy email"
+            title="Copy email"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
           >
-            Copy Email
+            <span aria-hidden="true" className="text-base leading-none">⧉</span>
           </button>
         </div>
 
@@ -173,12 +214,16 @@ export function ApplicationDocs({
 }
 
 function buildWordDocument(text: string) {
-  const paragraphs = getLetterParagraphs(text)
-    .map(
-      (paragraph) =>
-        `<p style="margin: 0 0 12pt; text-align: ${paragraph.align};">${escapeHtml(paragraph.text)}</p>`
+  const blocks = getLetterBlocks(text)
+    .map((block) =>
+      block.lines
+        .map(
+          (line) =>
+            `<p style="margin: 0 0 ${line.isCompact ? "4pt" : "12pt"}; text-align: ${line.align};">${escapeHtml(line.text)}</p>`
+        )
+        .join("")
     )
-    .join("");
+    .join('<div style="height: 8pt;"></div>');
 
   return `
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -189,7 +234,7 @@ function buildWordDocument(text: string) {
         <title>Cover Letter</title>
       </head>
       <body style="font-family: 'Times New Roman', Times, serif; font-size: 11.5pt; line-height: 1.6; margin: 1in; color: #111827;">
-        ${paragraphs}
+        ${blocks}
       </body>
     </html>
   `;
@@ -227,17 +272,35 @@ function writePdfLine(
   });
 }
 
-function getLetterParagraphs(text: string) {
+function getLetterBlocks(text: string) {
   return text
     .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .map((paragraph) => ({
-      text: paragraph,
-      align: (shouldLeftAlignParagraph(paragraph) ? "left" : "justify") as
-        | "left"
-        | "justify",
+    .map((block) =>
+      block
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    )
+    .filter((lines) => lines.length > 0)
+    .map((lines) => ({
+      lines: shouldSplitIntoCompactLines(lines)
+        ? lines.map((line) => ({
+            text: line,
+            align: "left" as const,
+            isCompact: true,
+          }))
+        : [
+            {
+              text: lines.join(" "),
+              align: shouldLeftAlignParagraph(lines.join(" ")) ? ("left" as const) : ("justify" as const),
+              isCompact: false,
+            },
+          ],
     }));
+}
+
+function shouldSplitIntoCompactLines(lines: string[]) {
+  return lines.some((line) => /^best regards[,!]?$/i.test(line)) || lines.some((line) => line.includes("@"));
 }
 
 function shouldLeftAlignParagraph(paragraph: string) {

@@ -12,6 +12,7 @@ type ApplicationSavePanelProps = {
   isDisabled: boolean;
   message: string;
   savedApplicationId?: string | null;
+  saveButtonLabel?: string;
 };
 
 export function ApplicationSavePanel({
@@ -23,7 +24,8 @@ export function ApplicationSavePanel({
   isSaving,
   isDisabled,
   message,
-  savedApplicationId
+  savedApplicationId,
+  saveButtonLabel = "Save Application",
 }: ApplicationSavePanelProps) {
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -34,32 +36,36 @@ export function ApplicationSavePanel({
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <label className="block text-sm font-medium text-stone-700">
-          Status
-          <select
-            value={status}
-            onChange={(event) =>
-              onStatusChange(event.target.value as ApplicationStatus)
-            }
-            className="mt-2 block w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          >
-            <option value="draft">draft</option>
-            <option value="applied">applied</option>
-            <option value="interview">interview</option>
-            <option value="rejected">rejected</option>
-          </select>
-        </label>
+      <div className="grid gap-4 md:grid-cols-2">
+        <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+          <label className="block text-sm font-medium text-stone-700">
+            Status
+            <select
+              value={status}
+              onChange={(event) =>
+                onStatusChange(event.target.value as ApplicationStatus)
+              }
+              className="mt-2 block w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="draft">draft</option>
+              <option value="applied">applied</option>
+              <option value="interview">interview</option>
+              <option value="rejected">rejected</option>
+            </select>
+          </label>
+        </article>
 
-        <label className="block text-sm font-medium text-stone-700">
-          Notes
-          <textarea
-            value={notes}
-            onChange={(event) => onNotesChange(event.target.value)}
-            placeholder="Optional notes about this application."
-            className="mt-2 min-h-[140px] w-full rounded-xl border border-stone-300 px-3 py-2 text-sm leading-6 text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          />
-        </label>
+        <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+          <label className="block text-sm font-medium text-stone-700">
+            Notes
+            <textarea
+              value={notes}
+              onChange={(event) => onNotesChange(event.target.value)}
+              placeholder="Optional notes about this application."
+              className="mt-2 min-h-[140px] w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm leading-6 text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+          </label>
+        </article>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -69,7 +75,7 @@ export function ApplicationSavePanel({
           disabled={isDisabled || isSaving}
           className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
         >
-          {isSaving ? "Saving..." : "Save Application"}
+          {isSaving ? "Saving..." : saveButtonLabel}
         </button>
 
         {savedApplicationId ? (
