@@ -171,7 +171,13 @@ export default function ApplicationDetailPage() {
       ) : null}
 
       <section className="mt-6 grid gap-6">
-        <ApplicationDocs documents={documents} onChange={handleDocumentsChange} />
+        <ApplicationDocs
+          documents={documents}
+          exportFileBaseName={[application.role_title, application.company_name]
+            .filter(Boolean)
+            .join(" ")}
+          onChange={handleDocumentsChange}
+        />
         <ApplicationSavePanel
           status={status}
           notes={notes}

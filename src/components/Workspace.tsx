@@ -275,6 +275,10 @@ export function Workspace() {
   const fitResult: FitAnalysis | null = applicationPackage?.fitAnalysis ?? null;
   const applicationDocs: ApplicationDocsType | null =
     applicationPackage?.documents ?? null;
+  const exportFileBaseName = buildDraftExportFileBaseName(
+    applicationPackage?.parsedJob.title,
+    applicationPackage?.parsedJob.company,
+  );
 
   function canSubmitWithCurrentResumeInput() {
     // The backend endpoints still need extracted resume text, so generation stays blocked
@@ -287,15 +291,19 @@ export function Workspace() {
       <div className="mx-auto max-w-6xl px-6 py-12">
         <header className="mx-auto max-w-3xl text-center">
           <p className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
-            Application Package Generator
+            Your job search made easy
           </p>
           <h1 className="mt-4 text-center text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
-            Your job search made easy.
+            Application Package Generator
           </h1>
           <p className="mt-4 text-center text-base leading-7 text-stone-600">
-            Start with your resume and one job description. Then generate a
-            truthful cover letter and application email and save the application
-            for tracking.
+            Create a tailored cover letter and email for each job application. 
+          </p>
+          <p className="mt-4 text-center text-base leading-7 text-stone-600">
+            Save all your applications in one place. 
+          </p>
+          <p className="mt-4 text-center text-base leading-7 text-stone-600">
+            Track your job search progress.
           </p>
         </header>
 
@@ -315,7 +323,7 @@ export function Workspace() {
           />
         </section>
 
-        <section className="mt-6">
+        <section className="mt-6 flex flex-col items-center">
           <button
             type="button"
             onClick={generateApplicationPackage}
@@ -326,7 +334,7 @@ export function Workspace() {
           </button>
 
           {isGenerating ? (
-            <p className="mt-3 text-sm text-stone-600">
+            <p className="mt-3 text-center text-sm text-stone-600">
               {generationStages[generationStageIndex]}
             </p>
           ) : null}
@@ -341,6 +349,7 @@ export function Workspace() {
         <section className="mt-8 grid gap-6">
           <ApplicationDocs
             documents={applicationDocs}
+            exportFileBaseName={exportFileBaseName}
             onChange={handleDocumentsChange}
           />
           <FitResult result={fitResult} collapsedByDefault />
@@ -359,4 +368,8 @@ export function Workspace() {
       </div>
     </main>
   );
+}
+
+function buildDraftExportFileBaseName(role?: string, company?: string) {
+  return [role, company].filter(Boolean).join(" ");
 }
