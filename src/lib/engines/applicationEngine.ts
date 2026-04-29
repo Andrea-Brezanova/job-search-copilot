@@ -8,7 +8,6 @@ import type {
   ApplicationQualityNotes,
   CoverLetterInput,
   ExperienceEvidenceCard,
-  FitAnalysis,
   GeneratedApplicationContent,
   ParsedJob,
   ParsedProfile
@@ -903,22 +902,6 @@ function cleanSentence(value: string) {
   return cleaned.endsWith(".") ? cleaned : `${cleaned}.`;
 }
 
-function formatList(items: string[]) {
-  const cleanedItems = Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
-
-  if (cleanedItems.length === 0) {
-    return "";
-  }
-  if (cleanedItems.length === 1) {
-    return cleanedItems[0];
-  }
-  if (cleanedItems.length === 2) {
-    return `${cleanedItems[0]} and ${cleanedItems[1]}`;
-  }
-
-  return `${cleanedItems.slice(0, -1).join(", ")}, and ${cleanedItems.at(-1)}`;
-}
-
 function normalizeGeneratedText(text: string) {
   return text.replace(/\n{3,}/g, "\n\n").replace(/\.\./g, ".").trim();
 }
@@ -1086,24 +1069,6 @@ function lowercaseFirst(value: string) {
   return value.length > 0
     ? `${value.charAt(0).toLowerCase()}${value.slice(1)}`
     : value;
-}
-
-function ensureFirstPersonContext(context: string, primary: boolean) {
-  const normalized = context.trim();
-
-  if (!normalized) {
-    return normalized;
-  }
-
-  if (/^i\b/i.test(normalized)) {
-    return normalized;
-  }
-
-  if (/^(designed|developed|built|implemented|integrated|validated|debugged|deployed|streamlined|collaborated|worked|supported|documented|reduced|improved|managed|maintained)\b/i.test(normalized)) {
-    return `${primary ? "I" : "I"} ${lowercaseFirst(normalized)}`;
-  }
-
-  return lowercaseFirst(normalized);
 }
 
 function buildStorySentences(story: ExperienceEvidenceCard) {

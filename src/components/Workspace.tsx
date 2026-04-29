@@ -48,7 +48,6 @@ export function Workspace() {
 
   useEffect(() => {
     if (!isGenerating) {
-      setGenerationStageIndex(0);
       return;
     }
 
@@ -184,6 +183,7 @@ export function Workspace() {
     }
 
     setIsGenerating(true);
+    setGenerationStageIndex(0);
 
     try {
       const response = await fetch("/api/generate-application-package", {
@@ -214,6 +214,7 @@ export function Workspace() {
       );
     } finally {
       setIsGenerating(false);
+      setGenerationStageIndex(0);
     }
   }
 
@@ -286,7 +287,7 @@ export function Workspace() {
       <div className="mx-auto max-w-6xl px-6 py-12">
         <header className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
-            Application Package MVP
+            Application Package Generator
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
             Generate and save one complete application package.

@@ -3,7 +3,6 @@ import { getSupabaseServerClient } from "@/lib/db/supabase";
 import type {
   ApplicationRecord,
   CreateApplicationInput,
-  ResumeRecord,
   UpdateApplicationInput
 } from "@/lib/types";
 
