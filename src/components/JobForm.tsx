@@ -20,7 +20,7 @@ export function JobForm({ value, onChange }: JobFormProps) {
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Example: We are looking for a frontend engineer with React, TypeScript, accessibility, and design system experience..."
-          className="min-h-[260px] w-full rounded-xl border border-stone-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="min-h-[180px] w-full rounded-xl border border-stone-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
         />
       </label>
     </section>

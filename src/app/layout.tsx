@@ -19,13 +19,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <div className="border-b border-stone-200 bg-white/90 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-            <Link
-              href="/"
-              className="text-sm font-semibold tracking-wide text-stone-900"
-            >
-              AI Job Copilot
-            </Link>
+          <div className="mx-auto flex max-w-6xl items-center justify-end px-6 py-4">
             <nav className="flex items-center gap-4 text-sm text-stone-600">
               <Link href="/" className="hover:text-stone-900">
                 Workspace

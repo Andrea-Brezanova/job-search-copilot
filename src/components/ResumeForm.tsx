@@ -1,10 +1,7 @@
- "use client";
-
-import { useEffect, useRef, useState } from "react";
+"use client";
 
 // This file renders the resume or profile textarea input.
 type ResumeFormProps = {
-  value: string;
   onChange: (value: string) => void;
   onFileChange: (file: File | null) => void;
   isUploading: boolean;
@@ -15,7 +12,6 @@ type ResumeFormProps = {
 };
 
 export function ResumeForm({
-  value,
   onChange,
   onFileChange,
   isUploading,
@@ -24,28 +20,21 @@ export function ResumeForm({
   uploadedFileName,
   uploadNote
 }: ResumeFormProps) {
-  const [isEditorExpanded, setIsEditorExpanded] = useState(true);
-  const hadResumeContentRef = useRef(false);
-  const hasResumeContent = value.trim().length > 0 || Boolean(uploadedFileName);
-
-  useEffect(() => {
-    if (hasResumeContent && !hadResumeContentRef.current) {
-      setIsEditorExpanded(false);
-    }
-
-    hadResumeContentRef.current = hasResumeContent;
-  }, [hasResumeContent]);
+  function handleClearResume() {
+    onChange("");
+    onFileChange(null);
+  }
 
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-stone-900">Resume or Profile</h2>
+        <h2 className="text-lg font-semibold text-stone-900">Resume</h2>
         <p className="mt-1 text-sm text-stone-600">
-          Paste your resume, LinkedIn summary, or background notes.
+          Upload your resume to generate your application package.
         </p>
       </div>
 
-      <div className="mb-4">
+      <div>
         <label className="block text-sm font-medium text-stone-700">
           Upload Resume File
         </label>
@@ -54,77 +43,61 @@ export function ResumeForm({
         </p>
 
         <input
+          id="resume-file-input"
           type="file"
           accept=".txt,.pdf,.doc,.docx"
           onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
-          className="mt-3 block w-full rounded-xl border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-stone-700 file:mr-4 file:rounded-lg file:border-0 file:bg-brand-700 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-brand-900"
+          className="sr-only"
         />
 
-        {isUploading ? (
-          <p className="mt-2 text-sm text-stone-600">Uploading resume file...</p>
-        ) : null}
-
         {uploadedFileName ? (
-          <p className="mt-2 text-sm text-stone-600">Selected file: {uploadedFileName}</p>
+          <div className="mt-3 flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <label
+              htmlFor="resume-file-input"
+              className="cursor-pointer rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-900"
+            >
+              Choose File
+            </label>
+            <span className="flex min-w-0 items-center gap-2 text-sm text-stone-700">
+              <span aria-hidden="true">📄</span>
+              <span className="truncate">{uploadedFileName}</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleClearResume}
+              className="ml-auto cursor-pointer text-gray-500 transition hover:text-black"
+              aria-label="Clear uploaded resume"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3">
+            <label
+              htmlFor="resume-file-input"
+              className="inline-flex cursor-pointer items-center rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-900"
+            >
+              Choose File
+            </label>
+          </div>
+        )}
+
+        {isUploading ? (
+          <p className="mt-3 text-sm text-stone-600">Uploading resume file...</p>
         ) : null}
 
         {uploadNote ? (
-          <p className="mt-2 text-sm text-amber-700">{uploadNote}</p>
+          <p className="mt-3 text-sm text-amber-700">{uploadNote}</p>
         ) : null}
 
         {uploadError ? (
-          <p className="mt-2 text-sm text-rose-700">{uploadError}</p>
+          <p className="mt-3 text-sm text-rose-700">{uploadError}</p>
         ) : null}
 
         {uploadSuccess ? (
-          <p className="mt-2 text-sm text-emerald-700">{uploadSuccess}</p>
+          <p className="mt-3 text-sm text-emerald-700">{uploadSuccess}</p>
         ) : null}
       </div>
-
-      {hasResumeContent && !isEditorExpanded ? (
-        <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-stone-800">Resume text loaded</p>
-              <p className="mt-1 text-xs text-stone-500">
-                {value.trim().length} characters available for generation
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsEditorExpanded(true)}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
-            >
-              Edit Resume Text
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div>
-          {hasResumeContent ? (
-            <div className="mb-3 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsEditorExpanded(false)}
-                className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
-              >
-                Collapse Resume Text
-              </button>
-            </div>
-          ) : null}
-
-          <label className="block">
-            <span className="sr-only">Resume or profile text</span>
-            <textarea
-              value={value}
-              onChange={(event) => onChange(event.target.value)}
-              placeholder="Example: Product designer with 5 years of experience in B2B SaaS, user research, and cross-functional collaboration..."
-              className="min-h-[260px] w-full rounded-xl border border-stone-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            />
-          </label>
-        </div>
-      )}
     </section>
   );
 }

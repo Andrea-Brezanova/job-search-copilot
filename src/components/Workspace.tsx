@@ -177,7 +177,7 @@ export function Workspace() {
 
     if (!canSubmitWithCurrentResumeInput()) {
       setStatusMessage(
-        "File selected, but this format is not parsed yet. Please paste your resume text for now.",
+        "Please upload a resume file that can be parsed before generating your application package.",
       );
       return;
     }
@@ -277,22 +277,22 @@ export function Workspace() {
     applicationPackage?.documents ?? null;
 
   function canSubmitWithCurrentResumeInput() {
-    // The backend endpoints still need actual resume text, so a file-only state
-    // should be blocked until that file has been parsed into the textarea.
+    // The backend endpoints still need extracted resume text, so generation stays blocked
+    // until the uploaded file has been parsed successfully.
     return hasJobText && hasResumeText;
   }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">
       <div className="mx-auto max-w-6xl px-6 py-12">
-        <header className="max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
+        <header className="mx-auto max-w-3xl text-center">
+          <p className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
             Application Package Generator
           </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
-            Generate and save one complete application package.
+          <h1 className="mt-4 text-center text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
+            Your job search made easy.
           </h1>
-          <p className="mt-4 text-base leading-7 text-stone-600">
+          <p className="mt-4 text-center text-base leading-7 text-stone-600">
             Start with your resume and one job description. Then generate a
             truthful cover letter and application email and save the application
             for tracking.
@@ -301,7 +301,6 @@ export function Workspace() {
 
         <section className="mt-10 grid gap-6 lg:grid-cols-2">
           <ResumeForm
-            value={profileText}
             onChange={handleProfileTextChange}
             onFileChange={handleResumeFileChange}
             isUploading={isUploading}
