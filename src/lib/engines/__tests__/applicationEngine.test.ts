@@ -74,9 +74,9 @@ describe("generateApplicationPackage fallback generation", () => {
   it("never combines a person name with Hiring Team in the email greeting", async () => {
     const result = await generateApplicationPackage(resumeText, jobDescription);
 
-    expect(result.documents.applicationEmail).toMatch(/^Hello Hiring Team,/);
+    expect(result.documents.applicationEmail).toMatch(/^Dear Hiring Team,/);
     expect(result.documents.applicationEmail).not.toMatch(
-      /^Hello [A-Z][a-z]+(?: [A-Z][a-z]+)? Hiring Team,/
+      /^Dear [A-Z][a-z]+(?: [A-Z][a-z]+)? Hiring Team,/
     );
   });
 

@@ -49,21 +49,21 @@ export async function POST(request: Request) {
 
     if (!body.profileText?.trim() || !body.jobDescription?.trim()) {
       return NextResponse.json(
-        { error: "Resume text and job description are required." },
+        { error: "Please add your resume / CV and the job description." },
         { status: 400 }
       );
     }
 
     if (!body.fitAnalysis || !body.documents) {
       return NextResponse.json(
-        { error: "Generate the application package before saving." },
+        { error: "Generate an application package before saving." },
         { status: 400 }
       );
     }
 
     if (!body.parsedJob) {
       return NextResponse.json(
-        { error: "Parsed job data is required when saving an application." },
+        { error: "We could not save this application right now. Please try generating it again." },
         { status: 400 }
       );
     }

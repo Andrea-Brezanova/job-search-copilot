@@ -1,14 +1,40 @@
 # AI Job Copilot
 
-Phase 1 MVP for a simple job-search copilot built with Next.js, TypeScript, Tailwind, and Supabase-ready structure.
+AI Job Copilot is a Next.js application that helps users generate a tailored cover letter and application email for a job posting, review the drafts, and save the application in a tracker.
 
-## What this MVP does
+## Current Stack
 
-- Accepts pasted resume or profile text
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Supabase for persistence
+- OpenAI Responses API for generation
+- Vitest for automated tests
+- ESLint and `npm run build` for quality checks
+
+## What the App Does Today
+
+- Accepts an uploaded resume / CV
 - Accepts one pasted job description
-- Analyzes fit with a mock-first engine
-- Generates a tailored cover letter and application email
-- Keeps the architecture modular so real LLM calls can be added later
+- Parses the resume and job description deterministically
+- Computes a fit summary
+- Makes one OpenAI call to generate:
+  - a cover letter
+  - an application email
+  - an application summary
+- Shows editable drafts in the UI
+- Lets users save applications and track status and notes
+- Lets users export the cover letter after generation
+
+## Main Flow
+
+1. Upload a resume / CV
+2. Paste a job description
+3. Click `Generate application package`
+4. Review and edit:
+   - `Cover letter`
+   - `Application email`
+5. Save the application to the tracker
 
 ## Project Structure
 
@@ -17,37 +43,23 @@ ai-job-copilot/
 ├─ src/
 │  ├─ app/
 │  │  ├─ api/
-│  │  │  ├─ analyze-job/route.ts
-│  │  │  ├─ generate-application/route.ts
-│  │  │  └─ parse-profile/route.ts
-│  │  ├─ jobs/page.tsx
-│  │  ├─ profile/page.tsx
+│  │  ├─ applications/
 │  │  ├─ globals.css
 │  │  ├─ layout.tsx
 │  │  └─ page.tsx
 │  ├─ components/
 │  │  ├─ ApplicationDocs.tsx
+│  │  ├─ ApplicationSavePanel.tsx
 │  │  ├─ FitResult.tsx
 │  │  ├─ JobForm.tsx
 │  │  ├─ ResumeForm.tsx
 │  │  └─ Workspace.tsx
 │  └─ lib/
 │     ├─ db/
-│     │  ├─ queries.ts
-│     │  └─ supabase.ts
 │     ├─ engines/
-│     │  ├─ applicationEngine.ts
-│     │  ├─ matchEngine.ts
-│     │  └─ profileEngine.ts
 │     ├─ llm/
-│     │  ├─ client.ts
-│     │  ├─ prompts.ts
-│     │  └─ schemas.ts
 │     └─ types/
-│        └─ index.ts
 ├─ supabase/
-│  └─ migrations/
-├─ .env.local
 ├─ package.json
 ├─ tsconfig.json
 └─ README.md
@@ -67,18 +79,32 @@ npm install
 npm run dev
 ```
 
-3. Open `http://localhost:3000`
+3. Run checks:
 
-## Notes
+```bash
+npm test
+npm run lint
+npm run build
+```
 
-- The current LLM layer is intentionally a placeholder.
-- The API routes return mock-backed structured results so the UI is usable now.
-- Supabase utilities are present for future persistence, but Phase 1 does not save user data yet.
+## Quality Checks
 
-## Phase 2 Ideas
+- `npm test` runs the Vitest suite
+- `npm run lint` runs ESLint
+- `npm run build` verifies the production build
 
-1. Replace mock LLM helpers with real structured model calls.
-2. Store resumes, job descriptions, and analysis history in Supabase.
-3. Add resume parsing to extract skills, seniority, and target roles more accurately.
-4. Support editing generated cover letters before export.
-5. Add multi-job comparison so users can prioritize applications.
+## Current Architecture Notes
+
+- Resume and job parsing are deterministic
+- Fit scoring is deterministic
+- Generation uses one OpenAI call only
+- Drafts remain editable after generation
+- Save/load behavior uses Supabase persistence
+
+## Phase 2
+
+Planned next steps:
+
+- Supabase Auth
+- saved resume / profile support
+- stronger multi-user profile handling

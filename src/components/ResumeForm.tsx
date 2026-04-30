@@ -28,7 +28,7 @@ export function ResumeForm({
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-stone-900">Resume</h2>
+        <h2 className="text-lg font-semibold text-stone-900">Resume / CV</h2>
         <p className="mt-1 text-sm text-stone-600">
           Upload your resume to generate your application package.
         </p>
@@ -36,7 +36,7 @@ export function ResumeForm({
 
       <div>
         <label className="block text-sm font-medium text-stone-700">
-          Upload Resume File
+          Upload resume / CV file
         </label>
         <p className="mt-1 text-xs text-stone-500">
           Accepted formats: `.txt`, `.pdf`, `.doc`, `.docx`

@@ -8,7 +8,7 @@ export function JobForm({ value, onChange }: JobFormProps) {
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-stone-900">Job Description</h2>
+        <h2 className="text-lg font-semibold text-stone-900">Job description</h2>
         <p className="mt-1 text-sm text-stone-600">
           Paste one job post you want to evaluate against your profile.
         </p>

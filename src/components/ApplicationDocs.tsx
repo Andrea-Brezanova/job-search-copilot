@@ -25,14 +25,14 @@ export function ApplicationDocs({
     return (
       <section className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Cover Letter</h2>
+          <h2 className="text-lg font-semibold text-stone-900">Cover letter</h2>
           <p className="mt-2 text-sm text-stone-600">
             Your editable cover letter draft will appear here after generation.
           </p>
         </article>
 
         <article className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Application Email</h2>
+          <h2 className="text-lg font-semibold text-stone-900">Application email</h2>
           <p className="mt-2 text-sm text-stone-600">
             Your editable email draft will appear here after generation.
           </p>
@@ -134,7 +134,7 @@ export function ApplicationDocs({
       <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-stone-900">Cover Letter</h2>
+            <h2 className="text-lg font-semibold text-stone-900">Cover letter</h2>
             {coverLetterCopyMessage ? (
               <p className="mt-1 text-xs text-stone-500">{coverLetterCopyMessage}</p>
             ) : null}
@@ -184,7 +184,7 @@ export function ApplicationDocs({
       <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-stone-900">Application Email</h2>
+            <h2 className="text-lg font-semibold text-stone-900">Application email</h2>
             {emailCopyMessage ? (
               <p className="mt-1 text-xs text-stone-500">{emailCopyMessage}</p>
             ) : null}
@@ -231,7 +231,7 @@ function buildWordDocument(text: string) {
       xmlns="http://www.w3.org/TR/REC-html40">
       <head>
         <meta charset="utf-8" />
-        <title>Cover Letter</title>
+        <title>Cover letter</title>
       </head>
       <body style="font-family: 'Times New Roman', Times, serif; font-size: 11.5pt; line-height: 1.6; margin: 1in; color: #111827;">
         ${blocks}

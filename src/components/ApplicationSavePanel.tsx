@@ -25,14 +25,14 @@ export function ApplicationSavePanel({
   isDisabled,
   message,
   savedApplicationId,
-  saveButtonLabel = "Save Application",
+  saveButtonLabel = "Save application",
 }: ApplicationSavePanelProps) {
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-stone-900">Save and Track</h2>
+        <h2 className="text-lg font-semibold text-stone-900">Save application</h2>
         <p className="mt-1 text-sm text-stone-600">
-          Save the generated package to Supabase and keep the application status updated.
+          Save the generated package and keep the application status updated.
         </p>
       </div>
 

@@ -179,7 +179,7 @@ export function Workspace() {
 
     if (!canSubmitWithCurrentResumeInput()) {
       setStatusMessage(
-        "Please upload a resume file that can be parsed before generating your application package.",
+        "Please upload a resume / CV before generating your application package.",
       );
       return;
     }
@@ -188,6 +188,9 @@ export function Workspace() {
     setGenerationStageIndex(0);
 
     try {
+      console.log("RESUME_TEXT_PREVIEW:", profileText.slice(0, 200));
+      console.log("JOB_DESC_PREVIEW:", jobDescription.slice(0, 200));
+
       const response = await fetch("/api/generate-application-package", {
         method: "POST",
         headers: {
@@ -200,13 +203,13 @@ export function Workspace() {
 
       if (!response.ok) {
         throw new Error(
-          data.error ?? "Failed to generate the application package.",
+          data.error ?? "We could not generate the application package. Please try again.",
         );
       }
 
       setApplicationPackage(data as ApplicationPackage);
       setSaveMessage(
-        "Application package generated. Review the drafts, then save.",
+        "Application package generated. Review the drafts, then save your application.",
       );
     } catch (error) {
       setStatusMessage(
@@ -225,7 +228,7 @@ export function Workspace() {
     setSaveMessage("");
 
     if (!applicationPackage) {
-      setStatusMessage("Generate the application package before saving.");
+      setStatusMessage("Generate an application package before saving.");
       return;
     }
 
@@ -333,7 +336,7 @@ export function Workspace() {
             disabled={isDisabled || isGenerating}
             className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
           >
-            {isGenerating ? "Generating..." : "Generate Application Package"}
+            {isGenerating ? "Generating..." : "Generate application package"}
           </button>
 
           {isGenerating ? (
@@ -383,7 +386,7 @@ export function Workspace() {
               isDisabled={!applicationPackage}
               message={saveMessage}
               savedApplicationId={savedApplicationId}
-              saveButtonLabel="Save this package"
+              saveButtonLabel="Save application"
             />
 
             <FitResult result={fitResult} collapsedByDefault />
