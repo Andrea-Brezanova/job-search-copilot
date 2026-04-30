@@ -187,6 +187,9 @@ function isCompanyCandidate(line?: string) {
     line.length < 80 &&
     !JOB_METADATA_PATTERN.test(line) &&
     !RESPONSIBILITY_NOISE_PATTERN.test(line) &&
+    !/^the role$/i.test(line) &&
+    !/^experience[:\s-]/i.test(line) &&
+    !/\b\d+\s*[–-]\s*\d+\s+years?\b/i.test(line) &&
     !/\b[A-Z]{2}\b/.test(line) &&
     !/\b(austin|boston|new york|san francisco|seattle|remote|hybrid)\b/i.test(line) &&
     !/preferred|work location|employment type|required qualifications|key responsibilities|skills match/i.test(

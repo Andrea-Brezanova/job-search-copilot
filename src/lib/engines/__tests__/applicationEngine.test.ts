@@ -1,7 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/llm/client", () => ({
-  generateStructuredOutput: vi.fn().mockResolvedValue(null)
+  generateStructuredOutput: vi.fn().mockResolvedValue({
+    data: {
+      cover_letter: `Dear Hiring Team,
+
+I’m applying for the Junior Software Engineer role because it aligns with the kind of work I want to build on. During my recent internship, I built a backend project that improved workflows and gave me experience working with data and internal tools. Earlier experience also strengthened my communication and problem-solving skills.
+
+Would you be available for a short Zoom call this week to discuss the role?
+
+Best regards,
+Andrea Brezanova
+andrea.brezan@gmail.com`,
+      email_text: `Hello Hiring Team,
+
+I’m applying for the Junior Software Engineer role.
+
+I’ve attached my cover letter and resume for your consideration.
+
+Would you be available for a short Zoom call this week to discuss the role?
+
+Best regards,
+Andrea Brezanova
+andrea.brezan@gmail.com`,
+      application_summary:
+        "The candidate has relevant project experience and a credible fit for the role."
+    },
+    model: "test-model",
+    rawOutputText: "{\"cover_letter\":\"...\",\"email_text\":\"...\",\"application_summary\":\"...\"}",
+    wasOpenAIUsed: true
+  })
 }));
 
 import { generateApplicationPackage } from "@/lib/engines/applicationEngine";
@@ -60,11 +88,11 @@ describe("generateApplicationPackage fallback generation", () => {
     expect(email.match(/andrea\.brezan@gmail\.com/g)?.length ?? 0).toBe(1);
   });
 
-  it("uses the Zoom CTA in the cover letter", async () => {
+  it("does not inject the legacy cover letter CTA", async () => {
     const result = await generateApplicationPackage(resumeText, jobDescription);
 
-    expect(result.documents.coverLetter).toContain(
-      "I’d be happy to discuss the role in more detail or walk you through my Django project over a short Zoom call."
+    expect(result.documents.coverLetter).not.toContain(
+      "I’d be happy to discuss the role in more detail or walk you through a relevant project over a short Zoom call."
     );
   });
 });

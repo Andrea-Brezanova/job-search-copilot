@@ -26,7 +26,12 @@ export async function POST(request: Request) {
     console.error("generate-application-package error", error);
 
     return NextResponse.json(
-      { error: "Unable to generate the application package." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to generate the application package."
+      },
       { status: 500 }
     );
   }

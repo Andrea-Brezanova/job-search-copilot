@@ -6,7 +6,7 @@ Return only the reasoning text.
 `;
 
 export const GENERATE_APPLICATION_PROMPT = `
-Write a short, natural cover letter and email for a junior software developer.
+Write a natural, professional cover letter and email for a job application.
 
 Return JSON:
 {
@@ -15,71 +15,39 @@ Return JSON:
   "application_summary": ""
 }
 
-Use ONLY the structured CoverLetterInput provided.
+Use the resume and job description to create a coherent story.
+Do not copy bullet points directly.
+Do not output bullet points.
+Write in complete sentences only.
 
-STYLE:
-- human
-- simple
-- concise
-- not corporate
-- not keyword-heavy
+Cover letter requirements:
+- Start with: Dear [Company] Hiring Team, or Dear Hiring Team,
+- Mention the exact role.
+- Explain why the role fits the candidate’s direction.
+- Select the strongest relevant experience from the resume.
+- Select one supporting experience, certification, skill, or transferable background.
+- Connect both to the job description in natural prose.
+- If a job requirement is not clearly in the resume, phrase it as interest in learning or deepening.
+- Do not invent experience.
+- Do not use placeholders.
+- Do not use section headings as a name.
+- Keep it 180–260 words.
+- End with a Zoom CTA.
+- Signature must use full candidate name and email once.
 
-RULES:
-- Do NOT copy sentences from the job description
-- Do NOT invent experience, metrics, ownership, or scale
-- Do NOT write a separate skills paragraph
-- Skills should appear naturally inside the experience paragraphs only
-- Use the exact role
-- Use a simple, human opening and do NOT list raw responsibilities
-- Always include the primary story as a full paragraph
-- Include the secondary story if it is present
-- Ensure every sentence has a subject
-- In experience paragraphs, always write in the first person
-- Keep the cover letter 160–220 words
+Email requirements:
+- Short, 70–110 words.
+- Mention exact role.
+- Mention strongest relevant proof.
+- Ask a question about a Zoom call.
+- Signature must use full candidate name and email once.
 
-STRUCTURE:
-1. Greeting
-2. Opening:
-"I’m applying for the [role] role because it aligns with the kind of work I want to build on, especially developing backend tools and working with database-driven systems."
-3. Primary story paragraph:
-- 3 to 4 sentences
-- start with "During my internship at [organization], I..."
-- explain what was built
-- mention Django naturally if it appears in the primary story
-- explain what problem it solved and why it mattered
-4. Secondary story paragraph if available:
-- start with "Earlier, as [role] at [organization], I..."
-- focus on SQL, debugging, collaboration, data validation, communication, or problem-solving when supported
-5. Closing with this exact sentence:
-"I’d be happy to discuss the role in more detail or walk you through my Django project over a short Zoom call."
-6. Signature:
-Best regards,
-[Name]
-[Email]
+CTA:
+"Would you be available for a short Zoom call this week to discuss the role?"
 
-EMAIL:
-- 70–100 words
-- simple and natural
-- use this structure:
-  1. greeting
-  2. "I’m applying for the [Role] role."
-  3. "I’ve attached my cover letter and resume for your consideration."
-  4. "Would you be available for a short Zoom call this week to discuss the role?"
-  5. "I’d be happy to walk you through my project and learn more about your team."
-  5. signature once only
-- do not copy full sentences from the cover letter
-- do not include a project or experience sentence in the email body
-- do not include a skills list
-- do not reuse the cover letter CTA
-- do not use vague phrasing like "talk through the role" or "I’d be happy to connect"
-
-APPLICATION SUMMARY:
-- 1 to 2 short sentences
-- summarize the strongest fit honestly
-
-INPUT:
-CoverLetterInput:
-{{coverLetterInput}}
+Input:
+generationPayload:
+{{generationPayload}}
 `;
 
 export const PARSE_PROFILE_PROMPT = `
