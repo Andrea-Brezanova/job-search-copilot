@@ -3,6 +3,7 @@
 // This file lists saved applications from Supabase.
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getSupabaseBrowserAccessToken } from "@/lib/db/supabase";
 import type { ApplicationRecord } from "@/lib/types";
 
 export default function ApplicationsPage() {
@@ -13,7 +14,17 @@ export default function ApplicationsPage() {
   useEffect(() => {
     async function loadApplications() {
       try {
-        const response = await fetch("/api/applications");
+        const accessToken = await getSupabaseBrowserAccessToken();
+
+        if (!accessToken) {
+          throw new Error("Please log in to view your saved applications.");
+        }
+
+        const response = await fetch("/api/applications", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
         const data = await response.json();
 
         if (!response.ok) {

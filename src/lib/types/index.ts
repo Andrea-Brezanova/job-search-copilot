@@ -177,7 +177,7 @@ export interface ApplicationRecord {
 }
 
 export interface CreateApplicationInput {
-  userId?: string | null;
+  userId: string;
   resumeFileName?: string | null;
   rawResumeText: string;
   rawJobText: string;

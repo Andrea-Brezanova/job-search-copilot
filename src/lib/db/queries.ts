@@ -21,13 +21,17 @@ function getDatabaseClient() {
 export async function saveGeneratedApplication(
   input: CreateApplicationInput
 ): Promise<ApplicationRecord> {
+  if (!input.userId) {
+    throw new Error("saveGeneratedApplication requires a userId.");
+  }
+
   const supabase = getDatabaseClient();
 
   // Resumes are saved first so applications can point at a stable source record.
   const { data: resume, error: resumeError } = await supabase
     .from("resumes")
     .insert({
-      user_id: input.userId ?? null,
+      user_id: input.userId,
       file_name: input.resumeFileName ?? null,
       raw_resume_text: input.rawResumeText,
       parsed_resume_json: input.parsedResume,
@@ -43,7 +47,7 @@ export async function saveGeneratedApplication(
   const { data: application, error: applicationError } = await supabase
     .from("applications")
     .insert({
-      user_id: input.userId ?? null,
+      user_id: input.userId,
       resume_id: resume.id,
       job_source_type: "manual_text",
       job_url: null,
@@ -69,11 +73,18 @@ export async function saveGeneratedApplication(
   return application as ApplicationRecord;
 }
 
-export async function listApplications(): Promise<ApplicationRecord[]> {
+export async function listApplications(
+  userId: string
+): Promise<ApplicationRecord[]> {
+  if (!userId) {
+    throw new Error("listApplications requires a userId.");
+  }
+
   const supabase = getDatabaseClient();
   const { data, error } = await supabase
     .from("applications")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -84,13 +95,19 @@ export async function listApplications(): Promise<ApplicationRecord[]> {
 }
 
 export async function getApplicationById(
-  id: string
+  id: string,
+  userId: string
 ): Promise<ApplicationRecord | null> {
+  if (!userId) {
+    throw new Error("getApplicationById requires a userId.");
+  }
+
   const supabase = getDatabaseClient();
   const { data, error } = await supabase
     .from("applications")
     .select("*")
     .eq("id", id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
@@ -102,8 +119,13 @@ export async function getApplicationById(
 
 export async function updateApplicationById(
   id: string,
+  userId: string,
   input: UpdateApplicationInput
 ): Promise<ApplicationRecord> {
+  if (!userId) {
+    throw new Error("updateApplicationById requires a userId.");
+  }
+
   const supabase = getDatabaseClient();
   const updatePayload: Record<string, string | null> = {
     updated_at: new Date().toISOString()
@@ -129,6 +151,7 @@ export async function updateApplicationById(
     .from("applications")
     .update(updatePayload)
     .eq("id", id)
+    .eq("user_id", userId)
     .select("*")
     .single();
 

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
+import { getSupabaseBrowserAccessToken } from "@/lib/db/supabase";
 import type {
   ApplicationDocs as ApplicationDocsType,
   ApplicationRecord,
@@ -26,7 +27,17 @@ export default function ApplicationDetailPage() {
   useEffect(() => {
     async function loadApplication() {
       try {
-        const response = await fetch(`/api/applications/${params.id}`);
+        const accessToken = await getSupabaseBrowserAccessToken();
+
+        if (!accessToken) {
+          throw new Error("Please log in to view this application.");
+        }
+
+        const response = await fetch(`/api/applications/${params.id}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
         const data = await response.json();
 
         if (!response.ok) {
@@ -81,10 +92,17 @@ export default function ApplicationDetailPage() {
     setIsSaving(true);
 
     try {
+      const accessToken = await getSupabaseBrowserAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Please log in to update this application.");
+      }
+
       const response = await fetch(`/api/applications/${params.id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           coverLetterDraft: documents.coverLetter,

@@ -8,6 +8,7 @@ import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
 import { FitResult } from "@/components/FitResult";
 import { JobForm } from "@/components/JobForm";
 import { ResumeForm } from "@/components/ResumeForm";
+import { getSupabaseBrowserAccessToken } from "@/lib/db/supabase";
 import type {
   ApplicationDocs as ApplicationDocsType,
   ApplicationPackage,
@@ -235,10 +236,17 @@ export function Workspace() {
     setIsSaving(true);
 
     try {
+      const accessToken = await getSupabaseBrowserAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Please log in to save your application.");
+      }
+
       const response = await fetch("/api/applications", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           profileText,

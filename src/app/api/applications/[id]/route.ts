@@ -4,6 +4,7 @@ import {
   getApplicationById,
   updateApplicationById
 } from "@/lib/db/queries";
+import { getAuthenticatedSupabaseUser } from "@/lib/db/supabase";
 import type { ApplicationStatus } from "@/lib/types";
 
 function getErrorMessage(error: unknown) {
@@ -11,12 +12,21 @@ function getErrorMessage(error: unknown) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthenticatedSupabaseUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Please log in to view this application." },
+        { status: 401 }
+      );
+    }
+
     const { id } = await context.params;
-    const application = await getApplicationById(id);
+    const application = await getApplicationById(id, user.id);
 
     if (!application) {
       return NextResponse.json(
@@ -44,6 +54,15 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthenticatedSupabaseUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Please log in to update this application." },
+        { status: 401 }
+      );
+    }
+
     const { id } = await context.params;
     const body = (await request.json()) as {
       coverLetterDraft?: string;
@@ -52,7 +71,7 @@ export async function PUT(
       notes?: string | null;
     };
 
-    const updatedApplication = await updateApplicationById(id, body);
+    const updatedApplication = await updateApplicationById(id, user.id, body);
     return NextResponse.json(updatedApplication);
   } catch (error) {
     console.error("application detail PUT error", error);

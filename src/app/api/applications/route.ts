@@ -4,6 +4,7 @@ import {
   listApplications,
   saveGeneratedApplication
 } from "@/lib/db/queries";
+import { getAuthenticatedSupabaseUser } from "@/lib/db/supabase";
 import { parseProfileText } from "@/lib/engines/profileEngine";
 import type {
   ApplicationDocs,
@@ -16,9 +17,18 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown server error.";
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const applications = await listApplications();
+    const user = await getAuthenticatedSupabaseUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Please log in to view your saved applications." },
+        { status: 401 }
+      );
+    }
+
+    const applications = await listApplications(user.id);
     return NextResponse.json(applications);
   } catch (error) {
     console.error("applications GET error", error);
@@ -35,6 +45,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthenticatedSupabaseUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Please log in to save your application." },
+        { status: 401 }
+      );
+    }
+
     const startedAt = Date.now();
     const body = (await request.json()) as {
       profileText?: string;
@@ -73,7 +92,7 @@ export async function POST(request: Request) {
     console.log("application-save-parse-ms", Date.now() - parseStartedAt);
     const saveStartedAt = Date.now();
     const savedApplication = await saveGeneratedApplication({
-      userId: null,
+      userId: user.id,
       resumeFileName: body.uploadedFileName ?? null,
       rawResumeText: body.profileText,
       rawJobText: body.jobDescription,
