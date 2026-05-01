@@ -3,18 +3,26 @@
 // This file lists saved applications from Supabase.
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getSupabaseBrowserAccessToken } from "@/lib/db/supabase";
+import { useAuth } from "@/components/AuthProvider";
 import type { ApplicationRecord } from "@/lib/types";
 
 export default function ApplicationsPage() {
+  const { isLoading: isAuthLoading, session } = useAuth();
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
     async function loadApplications() {
+      setIsPageLoading(true);
+      setErrorMessage("");
+
+      if (isAuthLoading) {
+        return;
+      }
+
       try {
-        const accessToken = await getSupabaseBrowserAccessToken();
+        const accessToken = session?.access_token ?? "";
 
         if (!accessToken) {
           throw new Error("Please log in to view your saved applications.");
@@ -37,12 +45,17 @@ export default function ApplicationsPage() {
           error instanceof Error ? error.message : "An unexpected error occurred."
         );
       } finally {
-        setIsLoading(false);
+        setIsPageLoading(false);
       }
     }
 
-    void loadApplications();
-  }, []);
+    if (!isAuthLoading) {
+      void loadApplications();
+    }
+  }, [isAuthLoading, session]);
+
+  const isLoading = isAuthLoading || isPageLoading;
+  const isLoggedOut = !isAuthLoading && !session;
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
@@ -65,7 +78,21 @@ export default function ApplicationsPage() {
         <p className="mt-6 text-sm text-stone-600">Loading applications...</p>
       ) : null}
 
-      {!isLoading && applications.length === 0 ? (
+      {!isLoading && isLoggedOut ? (
+        <section className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-6">
+          <p className="text-sm text-stone-600">
+            Sign in to view and manage your saved applications.
+          </p>
+          <Link
+            href="/"
+            className="mt-4 inline-flex text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+          >
+            Go to workspace
+          </Link>
+        </section>
+      ) : null}
+
+      {!isLoading && !isLoggedOut && applications.length === 0 ? (
         <section className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-6">
           <p className="text-sm text-stone-600">
             No saved applications yet. Generate one from the workspace first.

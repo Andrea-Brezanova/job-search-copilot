@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
-import { getSupabaseBrowserAccessToken } from "@/lib/db/supabase";
+import { useAuth } from "@/components/AuthProvider";
 import type {
   ApplicationDocs as ApplicationDocsType,
   ApplicationRecord,
@@ -15,19 +15,27 @@ import type {
 
 export default function ApplicationDetailPage() {
   const params = useParams<{ id: string }>();
+  const { isLoading: isAuthLoading, session } = useAuth();
   const [application, setApplication] = useState<ApplicationRecord | null>(null);
   const [documents, setDocuments] = useState<ApplicationDocsType | null>(null);
   const [status, setStatus] = useState<ApplicationStatus>("draft");
   const [notes, setNotes] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPageLoading, setIsPageLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     async function loadApplication() {
+      setIsPageLoading(true);
+      setErrorMessage("");
+
+      if (isAuthLoading) {
+        return;
+      }
+
       try {
-        const accessToken = await getSupabaseBrowserAccessToken();
+        const accessToken = session?.access_token ?? "";
 
         if (!accessToken) {
           throw new Error("Please log in to view this application.");
@@ -57,14 +65,17 @@ export default function ApplicationDetailPage() {
           error instanceof Error ? error.message : "An unexpected error occurred."
         );
       } finally {
-        setIsLoading(false);
+        setIsPageLoading(false);
       }
     }
 
-    if (params.id) {
+    if (params.id && !isAuthLoading) {
       void loadApplication();
     }
-  }, [params.id]);
+  }, [isAuthLoading, params.id, session]);
+
+  const isLoading = isAuthLoading || !params.id || isPageLoading;
+  const isLoggedOut = !isAuthLoading && !session;
 
   function handleDocumentsChange(
     field: keyof ApplicationDocsType,
@@ -92,7 +103,7 @@ export default function ApplicationDetailPage() {
     setIsSaving(true);
 
     try {
-      const accessToken = await getSupabaseBrowserAccessToken();
+      const accessToken = session?.access_token ?? "";
 
       if (!accessToken) {
         throw new Error("Please log in to update this application.");
@@ -141,7 +152,21 @@ export default function ApplicationDetailPage() {
   if (!application) {
     return (
       <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
-        <p className="text-sm text-stone-600">Application not found.</p>
+        {isLoggedOut ? (
+          <section className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
+            <p className="text-sm text-stone-600">
+              Sign in to view saved application details.
+            </p>
+            <Link
+              href="/"
+              className="mt-4 inline-flex text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+            >
+              Go to workspace
+            </Link>
+          </section>
+        ) : (
+          <p className="text-sm text-stone-600">Application not found.</p>
+        )}
       </main>
     );
   }

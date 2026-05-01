@@ -1,10 +1,11 @@
 // This file creates reusable Supabase clients for browser and server usage.
 import { createClient } from "@supabase/supabase-js";
-import type { User } from "@supabase/supabase-js";
+import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let browserClient: SupabaseClient | null | undefined;
 
 function isConfiguredValue(value: string | undefined) {
   if (!value) {
@@ -21,20 +22,33 @@ export function getSupabaseBrowserClient() {
     return null;
   }
 
-  return createClient(supabaseUrl as string, supabaseAnonKey as string);
+  if (!browserClient) {
+    browserClient = createClient(supabaseUrl as string, supabaseAnonKey as string);
+  }
+
+  return browserClient;
 }
 
-export async function getSupabaseBrowserAccessToken() {
+export function isSupabaseBrowserAuthConfigured() {
+  return Boolean(getSupabaseBrowserClient());
+}
+
+export async function getSupabaseBrowserSession(): Promise<Session | null> {
   const supabase = getSupabaseBrowserClient();
 
   if (!supabase) {
-    return "";
+    return null;
   }
 
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
+  return session;
+}
+
+export async function getSupabaseBrowserAccessToken() {
+  const session = await getSupabaseBrowserSession();
   return session?.access_token ?? "";
 }
 

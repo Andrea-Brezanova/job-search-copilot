@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
+import { useAuth } from "@/components/AuthProvider";
 import { FitResult } from "@/components/FitResult";
 import { JobForm } from "@/components/JobForm";
 import { ResumeForm } from "@/components/ResumeForm";
-import { getSupabaseBrowserAccessToken } from "@/lib/db/supabase";
 import type {
   ApplicationDocs as ApplicationDocsType,
   ApplicationPackage,
@@ -18,6 +18,7 @@ import type {
 
 export function Workspace() {
   const router = useRouter();
+  const { session } = useAuth();
   const generationStages = [
     "Reading your resume...",
     "Reading the job description...",
@@ -236,7 +237,7 @@ export function Workspace() {
     setIsSaving(true);
 
     try {
-      const accessToken = await getSupabaseBrowserAccessToken();
+      const accessToken = session?.access_token ?? "";
 
       if (!accessToken) {
         throw new Error("Please log in to save your application.");
@@ -396,6 +397,12 @@ export function Workspace() {
               savedApplicationId={savedApplicationId}
               saveButtonLabel="Save application"
             />
+
+            {!session ? (
+              <p className="text-sm text-stone-600">
+                You can generate without logging in. Sign in to save applications and view your saved list.
+              </p>
+            ) : null}
 
             <FitResult result={fitResult} collapsedByDefault />
           </section>
