@@ -1,13 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { getSupabaseBrowserClient } from "@/lib/db/supabase";
+import {
+  getSupabaseBrowserClient,
+  getSupabaseRememberMePreference,
+  setSupabaseRememberMePreference,
+} from "@/lib/db/supabase";
 import { useAuth } from "@/components/AuthProvider";
 
-export function AuthPanel() {
+type AuthPanelProps = {
+  variant?: "header" | "card";
+};
+
+export function AuthPanel({ variant = "header" }: AuthPanelProps) {
   const { isConfigured, isLoading, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(() =>
+    getSupabaseRememberMePreference(),
+  );
   const [mode, setMode] = useState<"sign_in" | "sign_up">("sign_in");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -16,6 +27,8 @@ export function AuthPanel() {
   async function handleSubmit() {
     setMessage("");
     setErrorMessage("");
+
+    setSupabaseRememberMePreference(mode === "sign_in" ? rememberMe : true);
 
     const supabase = getSupabaseBrowserClient();
 
@@ -91,6 +104,7 @@ export function AuthPanel() {
 
       setEmail("");
       setPassword("");
+      setRememberMe(true);
       setMode("sign_in");
       setMessage("Signed out.");
     } catch (error) {
@@ -106,19 +120,29 @@ export function AuthPanel() {
 
   if (!isConfigured) {
     return (
-      <p className="text-xs text-stone-500">
+      <p className={variant === "card" ? "text-sm text-stone-500" : "text-xs text-stone-500"}>
         Supabase auth is not configured in this environment.
       </p>
     );
   }
 
   if (isLoading) {
-    return <p className="text-xs text-stone-500">Checking session...</p>;
+    return (
+      <p className={variant === "card" ? "text-sm text-stone-500" : "text-xs text-stone-500"}>
+        Checking session...
+      </p>
+    );
   }
 
   if (user) {
     return (
-      <div className="flex flex-col items-end gap-2">
+      <div
+        className={
+          variant === "card"
+            ? "flex flex-col gap-3"
+            : "flex flex-col items-end gap-2"
+        }
+      >
         <p className="text-sm text-stone-600">
           Signed in as <span className="font-medium text-stone-900">{user.email}</span>
         </p>
@@ -137,8 +161,20 @@ export function AuthPanel() {
   }
 
   return (
-    <div className="flex max-w-sm flex-col items-end gap-2">
-      <div className="flex gap-2 text-xs font-medium text-stone-600">
+    <div
+      className={
+        variant === "card"
+          ? "flex w-full max-w-sm flex-col gap-3"
+          : "flex max-w-sm flex-col items-end gap-2"
+      }
+    >
+      <div
+        className={
+          variant === "card"
+            ? "flex gap-3 text-sm font-medium text-stone-600"
+            : "flex gap-2 text-xs font-medium text-stone-600"
+        }
+      >
         <button
           type="button"
           onClick={() => setMode("sign_in")}
@@ -159,20 +195,31 @@ export function AuthPanel() {
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         placeholder="Email"
-        className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        className="w-full rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
       />
       <input
         type="password"
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         placeholder="Password"
-        className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        className="w-full rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
       />
+      {mode === "sign_in" ? (
+        <label className="flex items-center gap-2 text-sm text-stone-600">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(event) => setRememberMe(event.target.checked)}
+            className="h-4 w-4 rounded border-stone-300 text-brand-700 focus:ring-brand-200"
+          />
+          Remember me
+        </label>
+      ) : null}
       <button
         type="button"
         onClick={() => void handleSubmit()}
         disabled={isSubmitting || !email.trim() || password.length < 6}
-        className="w-full rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
+        className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
       >
         {isSubmitting
           ? mode === "sign_up"

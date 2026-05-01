@@ -5,6 +5,7 @@ import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const authStoragePreferenceKey = "ai-job-copilot-auth-storage";
 let browserClient: SupabaseClient | null | undefined;
 
 function isConfiguredValue(value: string | undefined) {
@@ -23,10 +24,33 @@ export function getSupabaseBrowserClient() {
   }
 
   if (!browserClient) {
-    browserClient = createClient(supabaseUrl as string, supabaseAnonKey as string);
+    browserClient = createClient(supabaseUrl as string, supabaseAnonKey as string, {
+      auth: {
+        storage: createSupabaseBrowserStorage(),
+      },
+    });
   }
 
   return browserClient;
+}
+
+export function getSupabaseRememberMePreference() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  return window.localStorage.getItem(authStoragePreferenceKey) !== "session";
+}
+
+export function setSupabaseRememberMePreference(rememberMe: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    authStoragePreferenceKey,
+    rememberMe ? "local" : "session",
+  );
 }
 
 export function isSupabaseBrowserAuthConfigured() {
@@ -63,6 +87,46 @@ export function getSupabaseServerClient() {
       autoRefreshToken: false
     }
   });
+}
+
+function createSupabaseBrowserStorage() {
+  return {
+    getItem(key: string) {
+      if (typeof window === "undefined") {
+        return null;
+      }
+
+      const selectedStorage = getSupabaseRememberMePreference()
+        ? window.localStorage
+        : window.sessionStorage;
+
+      return selectedStorage.getItem(key);
+    },
+    setItem(key: string, value: string) {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const useLocalStorage = getSupabaseRememberMePreference();
+      const activeStorage = useLocalStorage
+        ? window.localStorage
+        : window.sessionStorage;
+      const inactiveStorage = useLocalStorage
+        ? window.sessionStorage
+        : window.localStorage;
+
+      activeStorage.setItem(key, value);
+      inactiveStorage.removeItem(key);
+    },
+    removeItem(key: string) {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    },
+  };
 }
 
 export async function getAuthenticatedSupabaseUser(request: Request): Promise<User | null> {

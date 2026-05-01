@@ -304,25 +304,7 @@ export function Workspace() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">
       <div className="mx-auto max-w-6xl px-6 py-12">
-        <header className="mx-auto max-w-3xl text-center">
-          <p className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
-            Your job search made easy
-          </p>
-          <h1 className="mt-4 text-center text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
-            Application Package Generator
-          </h1>
-          <p className="mt-4 text-center text-base leading-7 text-stone-600">
-            Create a tailored cover letter and email for each job application. 
-          </p>
-          <p className="mt-4 text-center text-base leading-7 text-stone-600">
-            Save all your applications in one place. 
-          </p>
-          <p className="mt-4 text-center text-base leading-7 text-stone-600">
-            Track your job search progress.
-          </p>
-        </header>
-
-        <section className="mt-10 grid gap-6 lg:grid-cols-2">
+        <section className="grid gap-6 lg:grid-cols-2">
           <ResumeForm
             onChange={handleProfileTextChange}
             onFileChange={handleResumeFileChange}
