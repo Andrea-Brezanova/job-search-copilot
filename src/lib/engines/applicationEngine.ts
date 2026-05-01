@@ -1,17 +1,21 @@
 // This file generates the application package used by the workspace.
 import { analyzeParsedJobFit, parseJobText } from "@/lib/engines/matchEngine";
+import { createPositioningStrategy } from "@/lib/engines/positioningEngine";
 import { parseProfileText } from "@/lib/engines/profileEngine";
 import { generateStructuredOutput } from "@/lib/llm/client";
 import { GENERATE_APPLICATION_PROMPT } from "@/lib/llm/prompts";
 import { generateApplicationContentJsonSchema } from "@/lib/llm/schemas";
 import type {
+  ApplicationBrief,
   ApplicationDocs,
   ApplicationPackage,
   ApplicationQualityNotes,
   ExperienceEvidenceCard,
+  FitAnalysis,
   GeneratedApplicationContent,
   ParsedJob,
   ParsedProfile,
+  PositioningStrategy,
 } from "@/lib/types";
 
 type ProfileContact = {
@@ -25,6 +29,9 @@ type GenerationPayload = {
   jobDescriptionText: string;
   requestedOutputs: Array<"cover_letter" | "email_text">;
   tone: string;
+  parsedProfile: ParsedProfile;
+  parsedJob: ParsedJob;
+  fitAnalysis: FitAnalysis;
   parsedRole: string;
   parsedCompany?: string;
   candidateName: string;
@@ -34,6 +41,8 @@ type GenerationPayload = {
   growthAreas: string[];
   primaryStory: ExperienceEvidenceCard;
   secondaryStory?: ExperienceEvidenceCard;
+  positioningStrategy: PositioningStrategy;
+  applicationBrief: ApplicationBrief;
 };
 
 type CoverLetterInputDebug = {
@@ -129,10 +138,34 @@ export async function generateApplicationPackage(
   console.log("resumeTextLength", profileText.length);
   console.log("detectedSections", JSON.stringify(experienceParseResult.detectedSections, null, 2));
   console.log("rawExperienceBlocks", JSON.stringify(experienceParseResult.rawExperienceBlocks, null, 2));
-  const selectedPrimaryStory = selectPrimaryStory(extractedExperiences, parsedJob, profileText);
-  const selectedSecondaryStory = selectSecondaryStory(
+  const initiallySelectedPrimaryStory = selectPrimaryStory(
     extractedExperiences,
-    selectedPrimaryStory
+    parsedJob,
+    profileText
+  );
+  const initiallySelectedSecondaryStory = selectSecondaryStory(
+    extractedExperiences,
+    initiallySelectedPrimaryStory
+  );
+  const positioningStrategy = createPositioningStrategy({
+    parsedProfile,
+    parsedJob,
+    fitAnalysis,
+    experiences: extractedExperiences,
+    resumeText: profileText,
+    jobDescriptionText: jobDescription,
+  });
+  const selectedPrimaryStory = selectPositionedPrimaryStory(
+    extractedExperiences,
+    positioningStrategy,
+    initiallySelectedPrimaryStory,
+    profileText
+  );
+  const selectedSecondaryStory = selectPositionedSecondaryStory(
+    extractedExperiences,
+    selectedPrimaryStory,
+    positioningStrategy,
+    initiallySelectedSecondaryStory
   );
   console.log("extractedExperiences", JSON.stringify(extractedExperiences, null, 2));
   console.log("selectedPrimaryStory", JSON.stringify(selectedPrimaryStory ?? null, null, 2));
@@ -149,13 +182,23 @@ export async function generateApplicationPackage(
     jobDescription,
     parsedProfile,
     parsedJob,
+    fitAnalysis,
     contact,
     selectedPrimaryStory,
-    selectedSecondaryStory
+    selectedSecondaryStory,
+    positioningStrategy
   );
   console.log("application-package-evidence-ms", Date.now() - payloadStartedAt);
   console.log("supportedSkills", JSON.stringify(generationPayload.supportedSkills, null, 2));
   console.log("growthAreas", JSON.stringify(generationPayload.growthAreas, null, 2));
+  console.log(
+    "positioningStrategy",
+    JSON.stringify(generationPayload.positioningStrategy, null, 2)
+  );
+  console.log(
+    "applicationBrief",
+    JSON.stringify(generationPayload.applicationBrief, null, 2)
+  );
   const coverLetterInputDebug = buildCoverLetterInputDebug(generationPayload);
   console.log(
     "application-package-cover-letter-input",
@@ -258,6 +301,8 @@ export async function generateApplicationPackage(
       llmResult.data?.application_summary?.trim() ||
       buildApplicationSummary(parsedProfile, generationPayload.parsedRole),
     qualityNotes: buildQualityNotes(generationPayload),
+    positioningStrategy: generationPayload.positioningStrategy,
+    applicationBrief: generationPayload.applicationBrief,
   };
 }
 
@@ -266,9 +311,11 @@ function buildGenerationPayload(
   jobDescription: string,
   parsedProfile: ParsedProfile,
   parsedJob: ParsedJob,
+  fitAnalysis: FitAnalysis,
   contact: ProfileContact,
   primaryStory: ExperienceEvidenceCard,
-  secondaryStory?: ExperienceEvidenceCard
+  secondaryStory: ExperienceEvidenceCard | undefined,
+  positioningStrategy: PositioningStrategy
 ): GenerationPayload {
   const candidateName = resolveCandidateName(
     parsedProfile.name,
@@ -276,12 +323,23 @@ function buildGenerationPayload(
     contact.email,
     profileText
   );
+  const applicationBrief = buildApplicationBrief(
+    parsedProfile,
+    parsedJob,
+    fitAnalysis,
+    positioningStrategy,
+    primaryStory,
+    secondaryStory
+  );
 
   return {
     resumeText: cleanResumeText(profileText),
     jobDescriptionText: cleanJobDescriptionText(jobDescription, parsedJob),
     requestedOutputs: ["cover_letter", "email_text"],
     tone: "human, concise, professional",
+    parsedProfile,
+    parsedJob,
+    fitAnalysis,
     parsedRole: sanitizeRoleTitle(parsedJob.title),
     parsedCompany: sanitizeCompanyName(parsedJob.company),
     candidateName,
@@ -297,6 +355,8 @@ function buildGenerationPayload(
     growthAreas: selectGrowthAreas(parsedJob, parsedProfile.skills),
     primaryStory,
     secondaryStory,
+    positioningStrategy,
+    applicationBrief,
   };
 }
 
@@ -992,6 +1052,33 @@ function selectPrimaryStory(
   return buildFallbackPrimaryStoryFromResume(profileText);
 }
 
+function selectPositionedPrimaryStory(
+  experiences: ExperienceEvidenceCard[],
+  positioningStrategy: PositioningStrategy,
+  currentPrimaryStory: ExperienceEvidenceCard | undefined,
+  profileText: string
+) {
+  if (
+    positioningStrategy.generationMode === "strong_match" ||
+    positioningStrategy.generationMode === "partial_match"
+  ) {
+    return currentPrimaryStory;
+  }
+
+  const transferableCandidate = experiences
+    .map((experience) => ({
+      experience,
+      score: scoreTransferableExperience(experience, positioningStrategy),
+    }))
+    .sort((left, right) => right.score - left.score)[0];
+
+  if (transferableCandidate?.score > 0) {
+    return transferableCandidate.experience;
+  }
+
+  return currentPrimaryStory ?? buildFallbackPrimaryStoryFromResume(profileText);
+}
+
 function selectSecondaryStory(
   experiences: ExperienceEvidenceCard[],
   primaryStory?: ExperienceEvidenceCard
@@ -1003,6 +1090,30 @@ function selectSecondaryStory(
         [experience.context, ...experience.actions, experience.outcome ?? ""].join(" ")
       )
   );
+}
+
+function selectPositionedSecondaryStory(
+  experiences: ExperienceEvidenceCard[],
+  primaryStory: ExperienceEvidenceCard | undefined,
+  positioningStrategy: PositioningStrategy,
+  currentSecondaryStory?: ExperienceEvidenceCard
+) {
+  if (
+    positioningStrategy.generationMode === "strong_match" ||
+    positioningStrategy.generationMode === "partial_match"
+  ) {
+    return currentSecondaryStory;
+  }
+
+  const candidate = experiences
+    .filter((experience) => experience !== primaryStory)
+    .map((experience) => ({
+      experience,
+      score: scoreTransferableExperience(experience, positioningStrategy),
+    }))
+    .sort((left, right) => right.score - left.score)[0];
+
+  return candidate?.score ? candidate.experience : currentSecondaryStory;
 }
 
 function scoreExperience(experience: ExperienceEvidenceCard, jobText: string) {
@@ -1045,6 +1156,106 @@ function scoreExperience(experience: ExperienceEvidenceCard, jobText: string) {
   }
 
   return score;
+}
+
+function scoreTransferableExperience(
+  experience: ExperienceEvidenceCard,
+  positioningStrategy: PositioningStrategy
+) {
+  const text = [
+    experience.role,
+    experience.organization,
+    experience.context,
+    ...experience.actions,
+    experience.outcome ?? "",
+    ...experience.skills,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  let score = 0;
+
+  for (const match of positioningStrategy.transferableMatches) {
+    if (
+      text.includes(match.resumeEvidence.toLowerCase()) ||
+      text.includes(match.jobNeed.toLowerCase()) ||
+      text.includes(match.bridgeExplanation.toLowerCase().split(" ")[0] ?? "")
+    ) {
+      score += 4;
+    }
+  }
+
+  for (const strength of positioningStrategy.adjacentStrengths) {
+    if (text.includes(strength.toLowerCase().split(" ")[0] ?? "")) {
+      score += 2;
+    }
+  }
+
+  if (/workflow|process|support|documentation|customer|sql|database|data|cross-functional/i.test(text)) {
+    score += 2;
+  }
+
+  return score;
+}
+
+function buildApplicationBrief(
+  parsedProfile: ParsedProfile,
+  parsedJob: ParsedJob,
+  fitAnalysis: FitAnalysis,
+  positioningStrategy: PositioningStrategy,
+  primaryStory: ExperienceEvidenceCard,
+  secondaryStory?: ExperienceEvidenceCard
+): ApplicationBrief {
+  const roleLabel = parsedJob.title === "this role" ? "the role" : parsedJob.title;
+
+  return {
+    candidateSummary: parsedProfile.summary || `Candidate with ${parsedProfile.experienceLevel.toLowerCase()}-level experience.`,
+    jobSummary: `The role focuses on ${dedupeStrings([
+      ...parsedJob.requirements,
+      ...parsedJob.responsibilities,
+      ...parsedJob.keywords,
+    ])
+      .slice(0, 3)
+      .join(", ")}.`,
+    matchLevel: positioningStrategy.matchLevel,
+    strongestSellingPoints: dedupeStrings([
+      positioningStrategy.strongestApplicationAngle,
+      ...fitAnalysis.strengths,
+      ...positioningStrategy.adjacentStrengths,
+    ]).slice(0, 5),
+    relevantResumeEvidence: dedupeStrings([
+      primaryStory.context,
+      ...primaryStory.actions,
+      primaryStory.outcome ?? "",
+      secondaryStory?.context ?? "",
+      ...(secondaryStory?.actions ?? []),
+      secondaryStory?.outcome ?? "",
+    ]).filter(Boolean).slice(0, 6),
+    transferableAngles: dedupeStrings([
+      ...positioningStrategy.transferableMatches.map((match) => match.bridgeExplanation),
+      ...positioningStrategy.adjacentStrengths,
+    ]).slice(0, 5),
+    companyOrRoleMotivation: [
+      `The candidate is applying for ${roleLabel} because it aligns with their direction and strongest relevant evidence.`,
+    ],
+    gapsToHandleCarefully: positioningStrategy.gaps.map(
+      (gap) => `${gap.requirement}: ${gap.handlingStrategy}`
+    ),
+    claimsToAvoid: positioningStrategy.claimsToAvoid,
+    recommendedTone: positioningStrategy.recommendedTone,
+    coverLetterOutline: [
+      `Open with why ${roleLabel} fits the candidate's direction.`,
+      "Lead with the strongest relevant story first.",
+      "Use a supporting story that adds either direct evidence or a transferable bridge.",
+      "Address gaps honestly without sounding apologetic.",
+      "Close with a short Zoom CTA.",
+    ],
+    emailOutline: [
+      `State interest in ${roleLabel}.`,
+      "Use one concise proof point from the strongest story.",
+      "Ask one clear Zoom-call question.",
+    ],
+  };
 }
 
 function selectSupportedSkills(

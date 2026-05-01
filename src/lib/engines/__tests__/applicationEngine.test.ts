@@ -71,6 +71,15 @@ describe("generateApplicationPackage fallback generation", () => {
     expect(result.documents.coverLetter).toContain("Junior Software Engineer role");
   });
 
+  it("keeps direct-match positioning on direct-overlap roles", async () => {
+    const result = await generateApplicationPackage(resumeText, jobDescription);
+
+    expect(["strong_match", "partial_match"]).toContain(
+      result.positioningStrategy?.generationMode
+    );
+    expect(["strong", "partial"]).toContain(result.positioningStrategy?.matchLevel);
+  });
+
   it("never combines a person name with Hiring Team in the email greeting", async () => {
     const result = await generateApplicationPackage(resumeText, jobDescription);
 

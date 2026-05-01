@@ -48,6 +48,59 @@ export interface ExperienceEvidenceCard {
   skills: string[];
 }
 
+export interface PositioningMatch {
+  jobNeed: string;
+  resumeEvidence: string;
+}
+
+export interface TransferablePositioningMatch extends PositioningMatch {
+  bridgeExplanation: string;
+}
+
+export interface PositioningGap {
+  requirement: string;
+  severity: "low" | "medium" | "high";
+  handlingStrategy: string;
+}
+
+export interface PositioningStrategy {
+  matchLevel: "strong" | "partial" | "transferable" | "weak";
+  generationMode:
+    | "strong_match"
+    | "partial_match"
+    | "transferable_positioning"
+    | "honest_stretch";
+  directMatches: PositioningMatch[];
+  transferableMatches: TransferablePositioningMatch[];
+  adjacentStrengths: string[];
+  gaps: PositioningGap[];
+  strongestApplicationAngle: string;
+  recommendedTone:
+    | "direct_match"
+    | "junior_growth"
+    | "career_transition"
+    | "transferable_skills"
+    | "high_motivation";
+  coverLetterStrategy: string;
+  evidenceToUse: string[];
+  claimsToAvoid: string[];
+}
+
+export interface ApplicationBrief {
+  candidateSummary: string;
+  jobSummary: string;
+  matchLevel: "strong" | "partial" | "transferable" | "weak";
+  strongestSellingPoints: string[];
+  relevantResumeEvidence: string[];
+  transferableAngles: string[];
+  companyOrRoleMotivation: string[];
+  gapsToHandleCarefully: string[];
+  claimsToAvoid: string[];
+  recommendedTone: string;
+  coverLetterOutline: string[];
+  emailOutline: string[];
+}
+
 export interface CoverLetterInput {
   company?: string;
   role: string;
@@ -72,6 +125,8 @@ export interface ApplicationPackage {
   parsedJob: ParsedJob;
   applicationSummary?: string;
   qualityNotes?: ApplicationQualityNotes;
+  positioningStrategy?: PositioningStrategy;
+  applicationBrief?: ApplicationBrief;
 }
 
 export interface PreferenceRecord {

@@ -21,4 +21,14 @@ Key Responsibilities:
     expect(parsed.company).toBe("Diligente Technologies");
     expect(parsed.company).not.toMatch(/Reposted|applicants|Promoted|Actively reviewing/);
   });
+
+  it("accepts short assistant titles without falling back to this role", () => {
+    const parsed = parseJobText(`
+Marketing Operations Assistant
+
+Support CRM workflows, campaign data, reporting, stakeholder coordination, documentation, process improvement, and marketing systems.
+`);
+
+    expect(parsed.title).toBe("Marketing Operations Assistant");
+  });
 });

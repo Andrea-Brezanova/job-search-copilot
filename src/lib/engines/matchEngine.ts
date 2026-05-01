@@ -131,7 +131,7 @@ function extractRoleTitle(lines: string[]) {
   const candidate =
     lines.find(
       (line) =>
-        /(developer|engineer|analyst|designer|manager|specialist|intern|consultant)/i.test(
+        /(developer|engineer|analyst|designer|manager|specialist|intern|consultant|assistant|coordinator|administrator)/i.test(
           line
         ) && !/team|hiring/i.test(line)
     ) ?? "this role";
