@@ -3,6 +3,7 @@ import { getSupabaseServerClient } from "@/lib/db/supabase";
 import type {
   ApplicationRecord,
   CreateApplicationInput,
+  ResumeRecord,
   UpdateApplicationInput
 } from "@/lib/types";
 
@@ -71,6 +72,74 @@ export async function saveGeneratedApplication(
   }
 
   return application as ApplicationRecord;
+}
+
+export async function saveDefaultResume(
+  userId: string,
+  rawResumeText: string,
+  fileName?: string | null
+): Promise<ResumeRecord> {
+  if (!userId) {
+    throw new Error("saveDefaultResume requires a userId.");
+  }
+
+  if (!rawResumeText.trim()) {
+    throw new Error("saveDefaultResume requires resume text.");
+  }
+
+  const supabase = getDatabaseClient();
+
+  const { error: clearDefaultsError } = await supabase
+    .from("resumes")
+    .update({ is_default: false })
+    .eq("user_id", userId)
+    .eq("is_default", true);
+
+  if (clearDefaultsError) {
+    throw new Error(`Failed to clear default resumes: ${clearDefaultsError.message}`);
+  }
+
+  const { data, error } = await supabase
+    .from("resumes")
+    .insert({
+      user_id: userId,
+      file_name: fileName ?? null,
+      raw_resume_text: rawResumeText.trim(),
+      parsed_resume_json: null,
+      is_default: true,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to save default resume: ${error.message}`);
+  }
+
+  return data as ResumeRecord;
+}
+
+export async function getDefaultResume(
+  userId: string
+): Promise<ResumeRecord | null> {
+  if (!userId) {
+    throw new Error("getDefaultResume requires a userId.");
+  }
+
+  const supabase = getDatabaseClient();
+  const { data, error } = await supabase
+    .from("resumes")
+    .select("*")
+    .eq("user_id", userId)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to fetch default resume: ${error.message}`);
+  }
+
+  return (data as ResumeRecord | null) ?? null;
 }
 
 export async function listApplications(

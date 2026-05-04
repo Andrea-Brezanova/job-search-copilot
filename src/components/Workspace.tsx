@@ -1,7 +1,7 @@
 // This file coordinates the homepage UI and API calls for the MVP flow.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
@@ -19,6 +19,7 @@ import type {
 export function Workspace() {
   const router = useRouter();
   const { session } = useAuth();
+  const profileTextRef = useRef("");
   const generationStages = [
     "Reading your resume...",
     "Reading the job description...",
@@ -49,6 +50,17 @@ export function Workspace() {
     null,
   );
   const [saveMessage, setSaveMessage] = useState("");
+  const [isDefaultResumeLoading, setIsDefaultResumeLoading] = useState(false);
+  const [isSavingDefaultResume, setIsSavingDefaultResume] = useState(false);
+  const [defaultResumeMessage, setDefaultResumeMessage] = useState("");
+  const [defaultResumeError, setDefaultResumeError] = useState("");
+  const [isUsingSavedResume, setIsUsingSavedResume] = useState(false);
+  const [loadedDefaultResumeForUserId, setLoadedDefaultResumeForUserId] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    profileTextRef.current = profileText;
+  }, [profileText]);
 
   useEffect(() => {
     if (!isGenerating) {
@@ -63,6 +75,79 @@ export function Workspace() {
 
     return () => window.clearInterval(intervalId);
   }, [generationStages.length, isGenerating]);
+
+  useEffect(() => {
+    const userId = session?.user.id ?? null;
+    const accessToken = session?.access_token ?? "";
+    let isActive = true;
+
+    async function syncDefaultResume() {
+      if (!userId || !accessToken) {
+        if (!isActive) {
+          return;
+        }
+
+        setLoadedDefaultResumeForUserId(null);
+        setIsUsingSavedResume(false);
+        setIsDefaultResumeLoading(false);
+        setDefaultResumeError("");
+        setDefaultResumeMessage("");
+        return;
+      }
+
+      if (loadedDefaultResumeForUserId === userId) {
+        return;
+      }
+
+      setIsDefaultResumeLoading(true);
+      setDefaultResumeError("");
+
+      try {
+        const response = await fetch("/api/resume-default", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        const data = (await response.json()) as {
+          error?: string;
+          resume?: { raw_resume_text?: string | null } | null;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Unable to load the saved resume.");
+        }
+
+        const savedResumeText = data.resume?.raw_resume_text?.trim() ?? "";
+
+        if (savedResumeText && !profileTextRef.current.trim() && isActive) {
+          setProfileText(savedResumeText);
+          profileTextRef.current = savedResumeText;
+          setIsUsingSavedResume(true);
+          setDefaultResumeMessage("Using saved resume.");
+        }
+      } catch (error) {
+        if (isActive) {
+          setDefaultResumeError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load the saved resume.",
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsDefaultResumeLoading(false);
+          setLoadedDefaultResumeForUserId(userId);
+        }
+      }
+    }
+
+    void syncDefaultResume();
+
+    return () => {
+      isActive = false;
+    };
+  }, [loadedDefaultResumeForUserId, session?.access_token, session?.user.id]);
 
   async function handleResumeFileChange(file: File | null) {
     // Clear old upload messages each time the user chooses a new file.
@@ -146,6 +231,8 @@ export function Workspace() {
     setApplicationPackage(null);
     setSavedApplicationId(null);
     setSaveMessage("");
+    setIsUsingSavedResume(false);
+    setDefaultResumeMessage("");
   }
 
   function handleJobDescriptionChange(value: string) {
@@ -281,6 +368,56 @@ export function Workspace() {
     }
   }
 
+  async function saveDefaultResume() {
+    setDefaultResumeError("");
+    setDefaultResumeMessage("");
+
+    if (!profileText.trim()) {
+      setDefaultResumeError("Please add your resume / CV before saving it.");
+      return;
+    }
+
+    const accessToken = session?.access_token ?? "";
+
+    if (!accessToken) {
+      setDefaultResumeError("Please log in to save your default resume.");
+      return;
+    }
+
+    setIsSavingDefaultResume(true);
+
+    try {
+      const response = await fetch("/api/resume-default", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          profileText,
+          uploadedFileName: uploadedFileName || null,
+        }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to save the default resume.");
+      }
+
+      setIsUsingSavedResume(true);
+      setDefaultResumeMessage("Saved as your default resume.");
+    } catch (error) {
+      setDefaultResumeError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save the default resume.",
+      );
+    } finally {
+      setIsSavingDefaultResume(false);
+    }
+  }
+
   // These booleans make the form rules easier to read and maintain.
   const hasResumeText = profileText.trim().length > 0;
   const hasResumeFile = uploadedResumeFile !== null;
@@ -313,6 +450,14 @@ export function Workspace() {
             uploadSuccess={uploadSuccess}
             uploadedFileName={uploadedFileName}
             uploadNote={uploadNote}
+            isDefaultResumeLoading={isDefaultResumeLoading}
+            isSavingDefaultResume={isSavingDefaultResume}
+            defaultResumeMessage={defaultResumeMessage}
+            defaultResumeError={defaultResumeError}
+            isUsingSavedResume={isUsingSavedResume}
+            showDefaultResumeActions={Boolean(session?.user)}
+            canSaveDefaultResume={Boolean(profileText.trim())}
+            onSaveDefaultResume={saveDefaultResume}
           />
           <JobForm
             value={jobDescription}

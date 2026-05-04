@@ -9,21 +9,26 @@ vi.mock("@/lib/db/supabase", () => ({
 }));
 
 import {
+  getDefaultResume,
   getApplicationById,
   listApplications,
+  saveDefaultResume,
   saveGeneratedApplication,
   updateApplicationById,
 } from "@/lib/db/queries";
 
 function createSelectChain(result: { data: unknown; error: unknown }) {
   const chain = {
+    data: result.data,
+    error: result.error,
     eq: vi.fn().mockReturnThis(),
-    order: vi.fn().mockResolvedValue(result),
+    order: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
     select: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
   };
 
   return chain;
@@ -77,6 +82,30 @@ describe("db queries user scoping", () => {
     await listApplications("user-123");
 
     expect(chain.eq).toHaveBeenCalledWith("user_id", "user-123");
+  });
+
+  it("saveDefaultResume requires userId", async () => {
+    await expect(saveDefaultResume("", "resume")).rejects.toThrow(
+      "saveDefaultResume requires a userId.",
+    );
+  });
+
+  it("getDefaultResume returns only the current user's resume", async () => {
+    const chain = createSelectChain({ data: null, error: null });
+    getSupabaseServerClient.mockReturnValue({
+      from: vi.fn().mockReturnValue(chain),
+    });
+
+    await getDefaultResume("user-123");
+
+    expect(chain.eq).toHaveBeenCalledWith("user_id", "user-123");
+    expect(chain.order).toHaveBeenNthCalledWith(1, "is_default", {
+      ascending: false,
+    });
+    expect(chain.order).toHaveBeenNthCalledWith(2, "created_at", {
+      ascending: false,
+    });
+    expect(chain.limit).toHaveBeenCalledWith(1);
   });
 
   it("getApplicationById filters by id and userId", async () => {
