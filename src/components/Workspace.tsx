@@ -40,7 +40,7 @@ export function Workspace() {
   const [isUploading, setIsUploading] = useState(false);
   const [applicationPackage, setApplicationPackage] =
     useState<ApplicationPackage | null>(null);
-  const [status, setStatus] = useState<ApplicationStatus>("draft");
+  const [status] = useState<ApplicationStatus>("draft");
   const [notes, setNotes] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -515,7 +515,6 @@ export function Workspace() {
             <ApplicationSavePanel
               status={status}
               notes={notes}
-              onStatusChange={setStatus}
               onNotesChange={setNotes}
               onSave={saveApplication}
               isSaving={isSaving}

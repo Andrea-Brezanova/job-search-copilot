@@ -61,7 +61,7 @@ export async function saveGeneratedApplication(
       fit_score: input.fitAnalysis.fitScore,
       cover_letter_draft: input.coverLetterDraft,
       email_draft: input.emailDraft,
-      status: input.status,
+      status: input.status ?? "draft",
       notes: input.notes ?? null
     })
     .select("*")

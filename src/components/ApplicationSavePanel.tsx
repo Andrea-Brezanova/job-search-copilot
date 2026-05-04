@@ -5,7 +5,6 @@ import type { ApplicationStatus } from "@/lib/types";
 type ApplicationSavePanelProps = {
   status: ApplicationStatus;
   notes: string;
-  onStatusChange: (value: ApplicationStatus) => void;
   onNotesChange: (value: string) => void;
   onSave: () => void;
   isSaving: boolean;
@@ -18,7 +17,6 @@ type ApplicationSavePanelProps = {
 export function ApplicationSavePanel({
   status,
   notes,
-  onStatusChange,
   onNotesChange,
   onSave,
   isSaving,
@@ -38,21 +36,10 @@ export function ApplicationSavePanel({
 
       <div className="grid gap-4 md:grid-cols-2">
         <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-          <label className="block text-sm font-medium text-stone-700">
-            Status
-            <select
-              value={status}
-              onChange={(event) =>
-                onStatusChange(event.target.value as ApplicationStatus)
-              }
-              className="mt-2 block w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            >
-              <option value="draft">draft</option>
-              <option value="applied">applied</option>
-              <option value="interview">interview</option>
-              <option value="rejected">rejected</option>
-            </select>
-          </label>
+          <p className="text-sm font-medium text-stone-700">Status</p>
+          <p className="mt-2 inline-flex rounded-full bg-white px-3 py-2 text-sm font-medium capitalize text-stone-800">
+            {status}
+          </p>
         </article>
 
         <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">

@@ -1,5 +1,11 @@
 // This file centralizes the shared TypeScript interfaces used across the app.
-export type ApplicationStatus = "draft" | "applied" | "interview" | "rejected";
+export type ApplicationStatus =
+  | "draft"
+  | "applied"
+  | "interview"
+  | "offer"
+  | "rejected"
+  | "archived";
 
 export interface ParsedProfile {
   name: string;

@@ -124,10 +124,13 @@ export default function ApplicationsPage() {
               </div>
 
               <div className="text-right">
-                <p className="text-sm font-medium uppercase tracking-wide text-stone-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Status
+                </p>
+                <p className="mt-2 inline-flex rounded-full bg-stone-100 px-3 py-1 text-sm font-medium capitalize text-stone-800">
                   {application.status}
                 </p>
-                <p className="mt-1 text-sm text-stone-600">
+                <p className="mt-2 text-sm text-stone-600">
                   Fit score: {application.fit_score ?? "N/A"}
                 </p>
               </div>

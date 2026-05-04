@@ -187,6 +187,14 @@ export default function ApplicationDetailPage() {
         <p className="mt-2 text-sm text-stone-600">
           {application.company_name ?? "Company not parsed yet"}
         </p>
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+            Status
+          </p>
+          <p className="mt-2 inline-flex rounded-full bg-stone-100 px-3 py-1 text-sm font-medium capitalize text-stone-800">
+            {application.status}
+          </p>
+        </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-xl bg-stone-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
@@ -224,7 +232,6 @@ export default function ApplicationDetailPage() {
         <ApplicationSavePanel
           status={status}
           notes={notes}
-          onStatusChange={setStatus}
           onNotesChange={setNotes}
           onSave={saveApplication}
           isSaving={isSaving}
