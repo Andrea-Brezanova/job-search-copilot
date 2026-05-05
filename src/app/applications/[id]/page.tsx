@@ -9,6 +9,7 @@ import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
 import { useAuth } from "@/components/AuthProvider";
 import type {
+  ApplicationUpdateAction,
   ApplicationDocs as ApplicationDocsType,
   ApplicationRecord,
   ApplicationStatus
@@ -59,7 +60,6 @@ export default function ApplicationDetailPage() {
           coverLetter: record.cover_letter_draft,
           applicationEmail: record.email_draft
         });
-        setStatus(record.status);
         setNotes(record.notes ?? "");
       } catch (error) {
         setErrorMessage(
@@ -92,6 +92,43 @@ export default function ApplicationDetailPage() {
         [field]: value
       };
     });
+  }
+
+  async function runApplicationAction(action: ApplicationUpdateAction) {
+    setErrorMessage("");
+    setSaveMessage("");
+
+    try {
+      const accessToken = session?.access_token ?? "";
+
+      if (!accessToken) {
+        throw new Error("Please log in to update this application.");
+      }
+
+      const response = await fetch(`/api/applications/${params.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to update application.");
+      }
+
+      const updatedRecord = data as ApplicationRecord;
+      setApplication(updatedRecord);
+      setStatus(updatedRecord.status);
+      setSaveMessage(buildActionSuccessMessage(action));
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred."
+      );
+    }
   }
 
   async function saveApplication() {
@@ -129,7 +166,7 @@ export default function ApplicationDetailPage() {
         throw new Error(data.error ?? "Unable to save application changes.");
       }
 
-      const updatedRecord = data as ApplicationRecord;
+        const updatedRecord = data as ApplicationRecord;
       setApplication(updatedRecord);
       setStatus(updatedRecord.status);
       setSaveMessage("Changes saved.");
@@ -236,6 +273,29 @@ export default function ApplicationDetailPage() {
             <OverviewMetric
               label="Archived"
               value={formatDate(application.archived_at)}
+            />
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <ActionButton
+              label="Mark as Applied"
+              onClick={() => void runApplicationAction("mark_applied")}
+            />
+            <ActionButton
+              label="Set Follow-up"
+              onClick={() => void runApplicationAction("set_follow_up")}
+            />
+            <ActionButton
+              label="Move to Interview"
+              onClick={() => void runApplicationAction("move_to_interview")}
+            />
+            <ActionButton
+              label="Reject"
+              onClick={() => void runApplicationAction("mark_rejected")}
+            />
+            <ActionButton
+              label="Archive"
+              onClick={() => void runApplicationAction("archive")}
             />
           </div>
         </section>
@@ -354,4 +414,39 @@ function formatDate(value?: string | null) {
 
 function capitalizeStatus(status: ApplicationStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function buildActionSuccessMessage(action: ApplicationUpdateAction) {
+  switch (action) {
+    case "mark_applied":
+      return "Application marked as applied.";
+    case "set_follow_up":
+      return "Follow-up date set.";
+    case "move_to_interview":
+      return "Application moved to interview.";
+    case "mark_rejected":
+      return "Application marked as rejected.";
+    case "archive":
+      return "Application archived.";
+    default:
+      return "Application updated.";
+  }
+}
+
+function ActionButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
+    >
+      {label}
+    </button>
+  );
 }

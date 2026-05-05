@@ -7,6 +7,13 @@ export type ApplicationStatus =
   | "rejected"
   | "archived";
 
+export type ApplicationUpdateAction =
+  | "mark_applied"
+  | "set_follow_up"
+  | "move_to_interview"
+  | "mark_rejected"
+  | "archive";
+
 export interface ParsedProfile {
   name: string;
   summary: string;
