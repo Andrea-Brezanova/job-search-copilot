@@ -69,6 +69,7 @@ export async function PUT(
       action?: ApplicationUpdateAction;
       coverLetterDraft?: string;
       emailDraft?: string;
+      followUpEmailDraft?: string | null;
       notes?: string | null;
     };
 
@@ -88,6 +89,7 @@ export async function PUT(
     const updatedApplication = await updateApplicationById(id, user.id, {
       coverLetterDraft: body.coverLetterDraft,
       emailDraft: body.emailDraft,
+      followUpEmailDraft: body.followUpEmailDraft,
       notes: body.notes,
       ...actionUpdates,
     });

@@ -183,6 +183,7 @@ export interface ApplicationRecord {
   fit_score: number | null;
   cover_letter_draft: string;
   email_draft: string;
+  follow_up_email_draft: string | null;
   status: ApplicationStatus;
   notes: string | null;
   applied_at: string | null;
@@ -209,6 +210,7 @@ export interface CreateApplicationInput {
 export interface UpdateApplicationInput {
   coverLetterDraft?: string;
   emailDraft?: string;
+  followUpEmailDraft?: string | null;
   status?: ApplicationStatus;
   notes?: string | null;
   appliedAt?: string | null;

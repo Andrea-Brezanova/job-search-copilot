@@ -136,4 +136,24 @@ describe("db queries user scoping", () => {
     expect(chain.eq).toHaveBeenNthCalledWith(1, "id", "app-1");
     expect(chain.eq).toHaveBeenNthCalledWith(2, "user_id", "user-123");
   });
+
+  it("updateApplicationById maps follow-up email draft updates", async () => {
+    const chain = createSelectChain({
+      data: { id: "app-1", user_id: "user-123" },
+      error: null,
+    });
+    getSupabaseServerClient.mockReturnValue({
+      from: vi.fn().mockReturnValue(chain),
+    });
+
+    await updateApplicationById("app-1", "user-123", {
+      followUpEmailDraft: "Following up on my application...",
+    });
+
+    expect(chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        follow_up_email_draft: "Following up on my application...",
+      }),
+    );
+  });
 });

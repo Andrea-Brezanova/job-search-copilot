@@ -80,6 +80,26 @@ generationPayload:
 {{generationPayload}}
 `;
 
+export const GENERATE_FOLLOW_UP_EMAIL_PROMPT = `
+Write a short, polite, professional follow-up email for a saved job application.
+
+Return only the email text. Do not return JSON. Do not include commentary.
+
+Rules:
+- Mention the role and company when available.
+- Use only the provided application data.
+- Do not invent that the candidate interviewed, received a reply, or had prior contact unless the data clearly says so.
+- Keep the tone calm, concise, and businesslike.
+- Keep it easy to copy into an email.
+- Keep it about 80 to 140 words.
+- Include a greeting and a short sign-off.
+- If the application status is still draft, do not pretend the application was submitted. Use a neutral follow-up style based on the provided context.
+
+Input:
+followUpContext:
+{{followUpContext}}
+`;
+
 export const PARSE_PROFILE_PROMPT = `
 You are an assistant that extracts a clean summary, skills, experience level, and target roles from profile text.
 Return structured JSON only.

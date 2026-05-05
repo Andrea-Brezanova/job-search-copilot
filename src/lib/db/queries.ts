@@ -61,6 +61,7 @@ export async function saveGeneratedApplication(
       fit_score: input.fitAnalysis.fitScore,
       cover_letter_draft: input.coverLetterDraft,
       email_draft: input.emailDraft,
+      follow_up_email_draft: null,
       status: input.status ?? "draft",
       notes: input.notes ?? null
     })
@@ -206,6 +207,10 @@ export async function updateApplicationById(
 
   if (input.emailDraft !== undefined) {
     updatePayload.email_draft = input.emailDraft;
+  }
+
+  if (input.followUpEmailDraft !== undefined) {
+    updatePayload.follow_up_email_draft = input.followUpEmailDraft;
   }
 
   if (input.status !== undefined) {

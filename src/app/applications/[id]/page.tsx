@@ -20,12 +20,15 @@ export default function ApplicationDetailPage() {
   const { isLoading: isAuthLoading, session } = useAuth();
   const [application, setApplication] = useState<ApplicationRecord | null>(null);
   const [documents, setDocuments] = useState<ApplicationDocsType | null>(null);
+  const [followUpEmailDraft, setFollowUpEmailDraft] = useState("");
   const [status, setStatus] = useState<ApplicationStatus>("draft");
   const [notes, setNotes] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [followUpMessage, setFollowUpMessage] = useState("");
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState(false);
 
   useEffect(() => {
     async function loadApplication() {
@@ -60,6 +63,8 @@ export default function ApplicationDetailPage() {
           coverLetter: record.cover_letter_draft,
           applicationEmail: record.email_draft
         });
+        setFollowUpEmailDraft(record.follow_up_email_draft ?? "");
+        setStatus(record.status);
         setNotes(record.notes ?? "");
       } catch (error) {
         setErrorMessage(
@@ -97,6 +102,7 @@ export default function ApplicationDetailPage() {
   async function runApplicationAction(action: ApplicationUpdateAction) {
     setErrorMessage("");
     setSaveMessage("");
+    setFollowUpMessage("");
 
     try {
       const accessToken = session?.access_token ?? "";
@@ -138,6 +144,7 @@ export default function ApplicationDetailPage() {
 
     setErrorMessage("");
     setSaveMessage("");
+    setFollowUpMessage("");
     setIsSaving(true);
 
     try {
@@ -156,6 +163,7 @@ export default function ApplicationDetailPage() {
         body: JSON.stringify({
           coverLetterDraft: documents.coverLetter,
           emailDraft: documents.applicationEmail,
+          followUpEmailDraft: followUpEmailDraft.trim() || null,
           notes
         })
       });
@@ -166,8 +174,9 @@ export default function ApplicationDetailPage() {
         throw new Error(data.error ?? "Unable to save application changes.");
       }
 
-        const updatedRecord = data as ApplicationRecord;
+      const updatedRecord = data as ApplicationRecord;
       setApplication(updatedRecord);
+      setFollowUpEmailDraft(updatedRecord.follow_up_email_draft ?? "");
       setStatus(updatedRecord.status);
       setSaveMessage("Changes saved.");
     } catch (error) {
@@ -176,6 +185,56 @@ export default function ApplicationDetailPage() {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function generateFollowUpEmail() {
+    setErrorMessage("");
+    setSaveMessage("");
+    setFollowUpMessage("");
+    setIsGeneratingFollowUp(true);
+
+    try {
+      const accessToken = session?.access_token ?? "";
+
+      if (!accessToken) {
+        throw new Error("Please log in to generate a follow-up email.");
+      }
+
+      const response = await fetch(`/api/applications/${params.id}/follow-up`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to generate a follow-up email.");
+      }
+
+      const updatedRecord = data.application as ApplicationRecord;
+      setApplication(updatedRecord);
+      setFollowUpEmailDraft(updatedRecord.follow_up_email_draft ?? "");
+      setFollowUpMessage("Follow-up email generated. You can edit it before saving.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred."
+      );
+    } finally {
+      setIsGeneratingFollowUp(false);
+    }
+  }
+
+  async function copyFollowUpEmail() {
+    try {
+      await navigator.clipboard.writeText(followUpEmailDraft);
+      setFollowUpMessage("Follow-up email copied.");
+      window.setTimeout(() => setFollowUpMessage(""), 2000);
+    } catch {
+      setFollowUpMessage("Unable to copy the follow-up email.");
+      window.setTimeout(() => setFollowUpMessage(""), 2000);
     }
   }
 
@@ -368,6 +427,53 @@ export default function ApplicationDetailPage() {
             .join(" ")}
           onChange={handleDocumentsChange}
         />
+        <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-stone-900">
+                Follow-up email
+              </h2>
+              <p className="mt-1 text-sm text-stone-600">
+                Generate a short follow-up draft for this saved application.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void generateFollowUpEmail()}
+                disabled={isGeneratingFollowUp}
+                className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGeneratingFollowUp ? "Generating..." : "Generate follow-up email"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void copyFollowUpEmail()}
+                disabled={!followUpEmailDraft.trim()}
+                className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Copy follow-up email
+              </button>
+            </div>
+          </div>
+
+          {application.status === "draft" ? (
+            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Follow-ups are usually used after you’ve applied.
+            </p>
+          ) : null}
+
+          {followUpMessage ? (
+            <p className="mt-4 text-sm text-stone-600">{followUpMessage}</p>
+          ) : null}
+
+          <textarea
+            value={followUpEmailDraft}
+            onChange={(event) => setFollowUpEmailDraft(event.target.value)}
+            placeholder="Generate a follow-up email to start editing here."
+            className="mt-4 min-h-[220px] w-full rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-7 text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          />
+        </section>
         <ApplicationSavePanel
           status={status}
           notes={notes}
