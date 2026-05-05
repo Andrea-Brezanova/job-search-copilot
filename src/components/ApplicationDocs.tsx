@@ -76,49 +76,64 @@ export function ApplicationDocs({
   function handleExportPdf() {
     const doc = new jsPDF({
       unit: "pt",
-      format: "letter",
+      format: "a4",
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const marginX = 72;
-    const marginY = 72;
-    const contentWidth = pageWidth - marginX * 2;
-    const lineHeight = 19;
-    const paragraphGap = 12;
-    let cursorY = marginY;
+    const marginLeft = 54;
+    const marginRight = 54;
+    const marginTop = 64;
+    const marginBottom = 64;
+    const contentWidth = pageWidth - marginLeft - marginRight;
+    const lineHeight = 18;
+    const compactLineHeight = 16;
+    const paragraphGap = 14;
+    let cursorY = marginTop;
 
     doc.setFont("times", "normal");
-    doc.setFontSize(11.5);
+    doc.setFontSize(12);
+    doc.setTextColor(17, 24, 39);
 
     const blocks = getLetterBlocks(currentDocuments.coverLetter);
 
     blocks.forEach((block, blockIndex) => {
-      block.lines.forEach((blockLine, blockLineIndex) => {
-        const lines = doc.splitTextToSize(blockLine.text, contentWidth) as string[];
+      const wrappedLines = block.lines.flatMap((blockLine) =>
+        wrapPdfLines(doc, blockLine.text, contentWidth).map((line, lineIndex, lines) => ({
+          text: line,
+          align: blockLine.align,
+          isLastWrappedLine: lineIndex === lines.length - 1,
+          isCompact: blockLine.isCompact,
+        }))
+      );
+      const blockHeight = wrappedLines.reduce(
+        (total, line) => total + (line.isCompact ? compactLineHeight : lineHeight),
+        0
+      );
 
-        lines.forEach((line, lineIndex) => {
-          if (cursorY > pageHeight - marginY) {
+      if (cursorY + blockHeight > pageHeight - marginBottom) {
+        doc.addPage();
+        cursorY = marginTop;
+      }
+
+      wrappedLines.forEach((wrappedLine) => {
+        const currentLineHeight = wrappedLine.isCompact ? compactLineHeight : lineHeight;
+
+        if (cursorY + currentLineHeight > pageHeight - marginBottom) {
             doc.addPage();
-            cursorY = marginY;
-          }
-
-          const isLastWrappedLine = lineIndex === lines.length - 1;
-          writePdfLine(
-            doc,
-            line,
-            marginX,
-            cursorY,
-            contentWidth,
-            isLastWrappedLine,
-            blockLine.align
-          );
-          cursorY += lineHeight;
-        });
-
-        if (blockLineIndex < block.lines.length - 1) {
-          cursorY += 2;
+          cursorY = marginTop;
         }
+
+        writePdfLine(
+          doc,
+          wrappedLine.text,
+          marginLeft,
+          cursorY,
+          contentWidth,
+          wrappedLine.isLastWrappedLine,
+          wrappedLine.align
+        );
+        cursorY += currentLineHeight;
       });
 
       if (blockIndex < blocks.length - 1) {
@@ -272,6 +287,10 @@ function writePdfLine(
   });
 }
 
+function wrapPdfLines(doc: jsPDF, text: string, width: number) {
+  return doc.splitTextToSize(text, width) as string[];
+}
+
 function getLetterBlocks(text: string) {
   return text
     .split(/\n\s*\n/)
@@ -340,5 +359,9 @@ function buildExportFileBaseName(baseName?: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  return normalizedBaseName ? `cover-letter-${normalizedBaseName}` : "cover-letter";
+  const truncatedBaseName = normalizedBaseName.slice(0, 80).replace(/-+$/g, "");
+
+  return truncatedBaseName
+    ? `cover-letter-${truncatedBaseName}`
+    : "cover-letter";
 }
