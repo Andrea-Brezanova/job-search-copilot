@@ -216,6 +216,18 @@ export async function updateApplicationById(
     updatePayload.notes = input.notes;
   }
 
+  if (input.appliedAt !== undefined) {
+    updatePayload.applied_at = input.appliedAt;
+  }
+
+  if (input.followUpAt !== undefined) {
+    updatePayload.follow_up_at = input.followUpAt;
+  }
+
+  if (input.archivedAt !== undefined) {
+    updatePayload.archived_at = input.archivedAt;
+  }
+
   const { data, error } = await supabase
     .from("applications")
     .update(updatePayload)

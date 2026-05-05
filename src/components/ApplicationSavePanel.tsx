@@ -30,7 +30,7 @@ export function ApplicationSavePanel({
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-stone-900">Save application</h2>
         <p className="mt-1 text-sm text-stone-600">
-          Save the generated package and keep the application status updated.
+          Save your document edits and notes for this application.
         </p>
       </div>
 

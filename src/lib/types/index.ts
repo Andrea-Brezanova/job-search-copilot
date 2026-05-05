@@ -178,6 +178,9 @@ export interface ApplicationRecord {
   email_draft: string;
   status: ApplicationStatus;
   notes: string | null;
+  applied_at: string | null;
+  follow_up_at: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -201,4 +204,7 @@ export interface UpdateApplicationInput {
   emailDraft?: string;
   status?: ApplicationStatus;
   notes?: string | null;
+  appliedAt?: string | null;
+  followUpAt?: string | null;
+  archivedAt?: string | null;
 }
