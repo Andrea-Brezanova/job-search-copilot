@@ -1,6 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import {
+  AlignmentType,
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+} from "docx";
 import { jsPDF } from "jspdf";
 import type { ApplicationDocs as ApplicationDocsType } from "@/lib/types";
 
@@ -66,11 +73,14 @@ export function ApplicationDocs({
     }
   }
 
-  function handleExportDoc() {
-    const blob = new Blob([buildWordDocument(currentDocuments.coverLetter)], {
-      type: "application/msword",
-    });
-    downloadBlob(blob, `${baseFileName}.doc`);
+  async function handleExportDocx() {
+    const document = buildDocxDocument(currentDocuments.coverLetter);
+    const blob = await Packer.toBlob(document);
+    downloadBlob(
+      blob,
+      `${baseFileName}.docx`,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
   }
 
   function handleExportPdf() {
@@ -178,10 +188,10 @@ export function ApplicationDocs({
                 </button>
                 <button
                   type="button"
-                  onClick={handleExportDoc}
+                  onClick={() => void handleExportDocx()}
                   className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
                 >
-                  Export as DOC
+                  Export as DOCX
                 </button>
               </div>
             </details>
@@ -228,31 +238,56 @@ export function ApplicationDocs({
   );
 }
 
-function buildWordDocument(text: string) {
-  const blocks = getLetterBlocks(text)
-    .map((block) =>
-      block.lines
-        .map(
-          (line) =>
-            `<p style="margin: 0 0 ${line.isCompact ? "4pt" : "12pt"}; text-align: ${line.align};">${escapeHtml(line.text)}</p>`
-        )
-        .join("")
-    )
-    .join('<div style="height: 8pt;"></div>');
+function buildDocxDocument(text: string) {
+  const paragraphs = getLetterBlocks(text).flatMap((block, blockIndex, blocks) => {
+    const blockParagraphs = block.lines.map((line, lineIndex) =>
+      new Paragraph({
+        alignment:
+          line.align === "justify"
+            ? AlignmentType.JUSTIFIED
+            : AlignmentType.LEFT,
+        spacing: {
+          after:
+            lineIndex === block.lines.length - 1
+              ? blockIndex === blocks.length - 1
+                ? 0
+                : line.isCompact
+                  ? 120
+                  : 180
+              : 80,
+          line: line.isCompact ? 300 : 360,
+        },
+        children: [
+          new TextRun({
+            text: line.text,
+            font: "Times New Roman",
+            size: 24,
+            color: "111827",
+          }),
+        ],
+      })
+    );
 
-  return `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:w="urn:schemas-microsoft-com:office:word"
-      xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8" />
-        <title>Cover letter</title>
-      </head>
-      <body style="font-family: 'Times New Roman', Times, serif; font-size: 11.5pt; line-height: 1.6; margin: 1in; color: #111827;">
-        ${blocks}
-      </body>
-    </html>
-  `;
+    return blockParagraphs;
+  });
+
+  return new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: 1440,
+              right: 1080,
+              bottom: 1440,
+              left: 1080,
+            },
+          },
+        },
+        children: paragraphs,
+      },
+    ],
+  });
 }
 
 function writePdfLine(
@@ -335,22 +370,14 @@ function shouldLeftAlignParagraph(paragraph: string) {
   );
 }
 
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = window.URL.createObjectURL(blob);
+function downloadBlob(blob: Blob, fileName: string, type = blob.type) {
+  const fileBlob = type ? blob.slice(0, blob.size, type) : blob;
+  const url = window.URL.createObjectURL(fileBlob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;
   anchor.click();
   window.URL.revokeObjectURL(url);
-}
-
-function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function buildExportFileBaseName(baseName?: string) {
