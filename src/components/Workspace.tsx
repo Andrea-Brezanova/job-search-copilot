@@ -512,6 +512,7 @@ export function Workspace() {
                   documents={applicationDocs}
                   exportFileBaseName={exportFileBaseName}
                   applicationEmailGmailSubject={applicationEmailGmailSubject}
+                  applicationEmailGmailTo=""
                   onChange={handleDocumentsChange}
                 />
               </div>

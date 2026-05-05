@@ -15,6 +15,7 @@ type ApplicationDocsProps = {
   documents: ApplicationDocsType | null;
   exportFileBaseName?: string;
   applicationEmailGmailSubject?: string;
+  applicationEmailGmailTo?: string;
   onChange?: (
     field: keyof ApplicationDocsType,
     value: string
@@ -25,6 +26,7 @@ export function ApplicationDocs({
   documents,
   exportFileBaseName,
   applicationEmailGmailSubject,
+  applicationEmailGmailTo,
   onChange,
 }: ApplicationDocsProps) {
   const [emailCopyMessage, setEmailCopyMessage] = useState("");
@@ -66,6 +68,7 @@ export function ApplicationDocs({
 
   function handleOpenEmailInGmail() {
     const gmailUrl = buildGmailComposeUrl(
+      applicationEmailGmailTo,
       applicationEmailGmailSubject,
       currentDocuments.applicationEmail
     );
@@ -417,8 +420,12 @@ function buildExportFileBaseName(baseName?: string) {
     : "cover-letter";
 }
 
-function buildGmailComposeUrl(subject?: string, body?: string) {
+function buildGmailComposeUrl(to?: string, subject?: string, body?: string) {
   const params = new URLSearchParams();
+
+  if (to?.trim()) {
+    params.set("to", to.trim());
+  }
 
   if (subject?.trim()) {
     params.set("su", subject.trim());

@@ -156,4 +156,28 @@ describe("db queries user scoping", () => {
       }),
     );
   });
+
+  it("updateApplicationById maps contact metadata updates", async () => {
+    const chain = createSelectChain({
+      data: { id: "app-1", user_id: "user-123" },
+      error: null,
+    });
+    getSupabaseServerClient.mockReturnValue({
+      from: vi.fn().mockReturnValue(chain),
+    });
+
+    await updateApplicationById("app-1", "user-123", {
+      contactName: "Taylor Kim",
+      contactEmail: "taylor@example.com",
+      jobUrl: "https://company.example/jobs/123",
+    });
+
+    expect(chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contact_name: "Taylor Kim",
+        contact_email: "taylor@example.com",
+        job_url: "https://company.example/jobs/123",
+      }),
+    );
+  });
 });

@@ -174,6 +174,8 @@ export interface ApplicationRecord {
   resume_id: string | null;
   job_source_type: string;
   job_url: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
   raw_job_text: string;
   parsed_job_json: ParsedJob | null;
   company_name: string | null;
@@ -211,6 +213,9 @@ export interface UpdateApplicationInput {
   coverLetterDraft?: string;
   emailDraft?: string;
   followUpEmailDraft?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  jobUrl?: string | null;
   status?: ApplicationStatus;
   notes?: string | null;
   appliedAt?: string | null;

@@ -21,6 +21,9 @@ export default function ApplicationDetailPage() {
   const [application, setApplication] = useState<ApplicationRecord | null>(null);
   const [documents, setDocuments] = useState<ApplicationDocsType | null>(null);
   const [followUpEmailDraft, setFollowUpEmailDraft] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
   const [status, setStatus] = useState<ApplicationStatus>("draft");
   const [notes, setNotes] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -64,6 +67,9 @@ export default function ApplicationDetailPage() {
           applicationEmail: record.email_draft
         });
         setFollowUpEmailDraft(record.follow_up_email_draft ?? "");
+        setContactName(record.contact_name ?? "");
+        setContactEmail(record.contact_email ?? "");
+        setJobUrl(record.job_url ?? "");
         setStatus(record.status);
         setNotes(record.notes ?? "");
       } catch (error) {
@@ -128,6 +134,9 @@ export default function ApplicationDetailPage() {
 
       const updatedRecord = data as ApplicationRecord;
       setApplication(updatedRecord);
+      setContactName(updatedRecord.contact_name ?? "");
+      setContactEmail(updatedRecord.contact_email ?? "");
+      setJobUrl(updatedRecord.job_url ?? "");
       setStatus(updatedRecord.status);
       setSaveMessage(buildActionSuccessMessage(action));
     } catch (error) {
@@ -164,6 +173,9 @@ export default function ApplicationDetailPage() {
           coverLetterDraft: documents.coverLetter,
           emailDraft: documents.applicationEmail,
           followUpEmailDraft: followUpEmailDraft.trim() || null,
+          contactName: contactName.trim() || null,
+          contactEmail: contactEmail.trim() || null,
+          jobUrl: jobUrl.trim() || null,
           notes
         })
       });
@@ -177,6 +189,9 @@ export default function ApplicationDetailPage() {
       const updatedRecord = data as ApplicationRecord;
       setApplication(updatedRecord);
       setFollowUpEmailDraft(updatedRecord.follow_up_email_draft ?? "");
+      setContactName(updatedRecord.contact_name ?? "");
+      setContactEmail(updatedRecord.contact_email ?? "");
+      setJobUrl(updatedRecord.job_url ?? "");
       setStatus(updatedRecord.status);
       setSaveMessage("Changes saved.");
     } catch (error) {
@@ -244,6 +259,7 @@ export default function ApplicationDetailPage() {
     }
 
     const gmailUrl = buildGmailComposeUrl(
+      contactEmail,
       buildFollowUpEmailSubject(application.role_title),
       followUpEmailDraft
     );
@@ -387,9 +403,9 @@ export default function ApplicationDetailPage() {
             <OverviewMetric
               label="Job URL"
               value={
-                application.job_url ? (
+                jobUrl ? (
                   <a
-                    href={application.job_url}
+                    href={jobUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="text-brand-700 underline-offset-4 hover:underline"
@@ -437,12 +453,58 @@ export default function ApplicationDetailPage() {
           exportFileBaseName={[application.role_title, application.company_name]
             .filter(Boolean)
             .join(" ")}
+          applicationEmailGmailTo={contactEmail}
           applicationEmailGmailSubject={buildApplicationEmailSubject(
             application.role_title,
             application.company_name
           )}
           onChange={handleDocumentsChange}
         />
+        <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-stone-900">
+              Contact &amp; source
+            </h2>
+            <p className="mt-1 text-sm text-stone-600">
+              Save the recruiter contact details and the source link for later follow-ups.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 text-sm text-stone-700">
+              <span className="font-medium text-stone-800">Contact name</span>
+              <input
+                type="text"
+                value={contactName}
+                onChange={(event) => setContactName(event.target.value)}
+                placeholder="Hiring manager or recruiter"
+                className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm text-stone-700">
+              <span className="font-medium text-stone-800">Contact email</span>
+              <input
+                type="email"
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                placeholder="recruiter@example.com"
+                className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm text-stone-700 md:col-span-2">
+              <span className="font-medium text-stone-800">Job URL</span>
+              <input
+                type="url"
+                value={jobUrl}
+                onChange={(event) => setJobUrl(event.target.value)}
+                placeholder="https://company.com/jobs/role"
+                className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
+            </label>
+          </div>
+        </section>
         <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -598,11 +660,15 @@ function buildFollowUpEmailSubject(role: string) {
   return `Following up on my application for ${role.trim() || "this role"}`;
 }
 
-function buildGmailComposeUrl(subject: string, body: string) {
+function buildGmailComposeUrl(to: string, subject: string, body: string) {
   const params = new URLSearchParams({
     su: subject,
     body,
   });
+
+  if (to.trim()) {
+    params.set("to", to.trim());
+  }
 
   return `https://mail.google.com/mail/?view=cm&fs=1&${params.toString()}`;
 }

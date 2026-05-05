@@ -52,6 +52,8 @@ export async function saveGeneratedApplication(
       resume_id: resume.id,
       job_source_type: "manual_text",
       job_url: null,
+      contact_name: null,
+      contact_email: null,
       raw_job_text: input.rawJobText,
       parsed_job_json: input.parsedJob,
       company_name: input.parsedJob.company ?? null,
@@ -211,6 +213,18 @@ export async function updateApplicationById(
 
   if (input.followUpEmailDraft !== undefined) {
     updatePayload.follow_up_email_draft = input.followUpEmailDraft;
+  }
+
+  if (input.contactName !== undefined) {
+    updatePayload.contact_name = input.contactName;
+  }
+
+  if (input.contactEmail !== undefined) {
+    updatePayload.contact_email = input.contactEmail;
+  }
+
+  if (input.jobUrl !== undefined) {
+    updatePayload.job_url = input.jobUrl;
   }
 
   if (input.status !== undefined) {

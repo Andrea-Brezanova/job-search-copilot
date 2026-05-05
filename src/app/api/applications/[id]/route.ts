@@ -70,6 +70,9 @@ export async function PUT(
       coverLetterDraft?: string;
       emailDraft?: string;
       followUpEmailDraft?: string | null;
+      contactName?: string | null;
+      contactEmail?: string | null;
+      jobUrl?: string | null;
       notes?: string | null;
     };
 
@@ -90,6 +93,9 @@ export async function PUT(
       coverLetterDraft: body.coverLetterDraft,
       emailDraft: body.emailDraft,
       followUpEmailDraft: body.followUpEmailDraft,
+      contactName: body.contactName,
+      contactEmail: body.contactEmail,
+      jobUrl: body.jobUrl,
       notes: body.notes,
       ...actionUpdates,
     });
