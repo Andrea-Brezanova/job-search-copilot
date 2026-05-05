@@ -238,6 +238,18 @@ export default function ApplicationDetailPage() {
     }
   }
 
+  function openFollowUpInGmail() {
+    if (!application) {
+      return;
+    }
+
+    const gmailUrl = buildGmailComposeUrl(
+      buildFollowUpEmailSubject(application.role_title),
+      followUpEmailDraft
+    );
+    window.open(gmailUrl, "_blank", "noopener,noreferrer");
+  }
+
   if (isLoading) {
     return (
       <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
@@ -425,6 +437,10 @@ export default function ApplicationDetailPage() {
           exportFileBaseName={[application.role_title, application.company_name]
             .filter(Boolean)
             .join(" ")}
+          applicationEmailGmailSubject={buildApplicationEmailSubject(
+            application.role_title,
+            application.company_name
+          )}
           onChange={handleDocumentsChange}
         />
         <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -448,6 +464,14 @@ export default function ApplicationDetailPage() {
               </button>
               <button
                 type="button"
+                onClick={openFollowUpInGmail}
+                disabled={!followUpEmailDraft.trim()}
+                className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Open follow-up in Gmail
+              </button>
+              <button
+                type="button"
                 onClick={() => void copyFollowUpEmail()}
                 disabled={!followUpEmailDraft.trim()}
                 className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -466,6 +490,10 @@ export default function ApplicationDetailPage() {
           {followUpMessage ? (
             <p className="mt-4 text-sm text-stone-600">{followUpMessage}</p>
           ) : null}
+
+          <p className="mt-3 text-xs text-stone-500">
+            This opens Gmail with a draft. You can review and send it there.
+          </p>
 
           <textarea
             value={followUpEmailDraft}
@@ -555,4 +583,26 @@ function ActionButton({
       {label}
     </button>
   );
+}
+
+function buildApplicationEmailSubject(role: string, company?: string | null) {
+  const normalizedRole = role.trim() || "this role";
+  const normalizedCompany = company?.trim();
+
+  return normalizedCompany
+    ? `Application for ${normalizedRole} at ${normalizedCompany}`
+    : `Application for ${normalizedRole}`;
+}
+
+function buildFollowUpEmailSubject(role: string) {
+  return `Following up on my application for ${role.trim() || "this role"}`;
+}
+
+function buildGmailComposeUrl(subject: string, body: string) {
+  const params = new URLSearchParams({
+    su: subject,
+    body,
+  });
+
+  return `https://mail.google.com/mail/?view=cm&fs=1&${params.toString()}`;
 }

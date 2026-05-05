@@ -14,6 +14,7 @@ import type { ApplicationDocs as ApplicationDocsType } from "@/lib/types";
 type ApplicationDocsProps = {
   documents: ApplicationDocsType | null;
   exportFileBaseName?: string;
+  applicationEmailGmailSubject?: string;
   onChange?: (
     field: keyof ApplicationDocsType,
     value: string
@@ -23,6 +24,7 @@ type ApplicationDocsProps = {
 export function ApplicationDocs({
   documents,
   exportFileBaseName,
+  applicationEmailGmailSubject,
   onChange,
 }: ApplicationDocsProps) {
   const [emailCopyMessage, setEmailCopyMessage] = useState("");
@@ -60,6 +62,14 @@ export function ApplicationDocs({
       setEmailCopyMessage("Unable to copy email.");
       window.setTimeout(() => setEmailCopyMessage(""), 2000);
     }
+  }
+
+  function handleOpenEmailInGmail() {
+    const gmailUrl = buildGmailComposeUrl(
+      applicationEmailGmailSubject,
+      currentDocuments.applicationEmail
+    );
+    window.open(gmailUrl, "_blank", "noopener,noreferrer");
   }
 
   async function handleCopyCoverLetter() {
@@ -214,16 +224,30 @@ export function ApplicationDocs({
               <p className="mt-1 text-xs text-stone-500">{emailCopyMessage}</p>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={handleCopyEmail}
-            aria-label="Copy email"
-            title="Copy email"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
-          >
-            <span aria-hidden="true" className="text-base leading-none">⧉</span>
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleOpenEmailInGmail}
+              disabled={!currentDocuments.applicationEmail.trim()}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Open email in Gmail
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyEmail}
+              aria-label="Copy email"
+              title="Copy email"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
+            >
+              <span aria-hidden="true" className="text-base leading-none">⧉</span>
+            </button>
+          </div>
         </div>
+
+        <p className="mt-3 text-xs text-stone-500">
+          This opens Gmail with a draft. You can review and send it there.
+        </p>
 
         <textarea
           value={currentDocuments.applicationEmail}
@@ -391,4 +415,18 @@ function buildExportFileBaseName(baseName?: string) {
   return truncatedBaseName
     ? `cover-letter-${truncatedBaseName}`
     : "cover-letter";
+}
+
+function buildGmailComposeUrl(subject?: string, body?: string) {
+  const params = new URLSearchParams();
+
+  if (subject?.trim()) {
+    params.set("su", subject.trim());
+  }
+
+  if (body?.trim()) {
+    params.set("body", body);
+  }
+
+  return `https://mail.google.com/mail/?view=cm&fs=1&${params.toString()}`;
 }

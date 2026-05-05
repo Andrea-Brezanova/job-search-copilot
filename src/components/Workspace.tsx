@@ -431,6 +431,10 @@ export function Workspace() {
     applicationPackage?.parsedJob.title,
     applicationPackage?.parsedJob.company,
   );
+  const applicationEmailGmailSubject = buildApplicationEmailSubject(
+    applicationPackage?.parsedJob.title,
+    applicationPackage?.parsedJob.company,
+  );
 
   function canSubmitWithCurrentResumeInput() {
     // The backend endpoints still need extracted resume text, so generation stays blocked
@@ -507,6 +511,7 @@ export function Workspace() {
                 <ApplicationDocs
                   documents={applicationDocs}
                   exportFileBaseName={exportFileBaseName}
+                  applicationEmailGmailSubject={applicationEmailGmailSubject}
                   onChange={handleDocumentsChange}
                 />
               </div>
@@ -540,4 +545,13 @@ export function Workspace() {
 
 function buildDraftExportFileBaseName(role?: string, company?: string) {
   return [role, company].filter(Boolean).join(" ");
+}
+
+function buildApplicationEmailSubject(role?: string, company?: string) {
+  const normalizedRole = role?.trim() || "this role";
+  const normalizedCompany = company?.trim();
+
+  return normalizedCompany
+    ? `Application for ${normalizedRole} at ${normalizedCompany}`
+    : `Application for ${normalizedRole}`;
 }
