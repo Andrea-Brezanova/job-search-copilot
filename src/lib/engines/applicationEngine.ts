@@ -5,6 +5,7 @@ import { parseProfileText } from "@/lib/engines/profileEngine";
 import { generateStructuredOutput } from "@/lib/llm/client";
 import { GENERATE_APPLICATION_PROMPT } from "@/lib/llm/prompts";
 import { generateApplicationContentJsonSchema } from "@/lib/llm/schemas";
+import { debugJson, debugLog } from "@/lib/logging";
 import type {
   ApplicationBrief,
   ApplicationDocs,
@@ -124,20 +125,20 @@ export async function generateApplicationPackage(
   const parsedProfile = await parseProfileText(profileText);
   const parsedJob = parseJobText(jobDescription);
   const contact = extractProfileContact(profileText);
-  console.log("application-package-parse-ms", Date.now() - parseStartedAt);
-  console.log("parsedCandidateName", parsedProfile.name || "");
+  debugLog("application-package-parse-ms", Date.now() - parseStartedAt);
+  debugLog("parsedCandidateName", parsedProfile.name || "");
 
   const fitStartedAt = Date.now();
   const fitAnalysis = analyzeParsedJobFit(parsedProfile, parsedJob);
-  console.log("application-package-fit-ms", Date.now() - fitStartedAt);
+  debugLog("application-package-fit-ms", Date.now() - fitStartedAt);
 
   const payloadStartedAt = Date.now();
-  console.log("parsedProfile", JSON.stringify(parsedProfile, null, 2));
+  debugJson("parsedProfile", parsedProfile);
   const experienceParseResult = extractResumeExperiences(profileText);
   const extractedExperiences = experienceParseResult.experiences;
-  console.log("resumeTextLength", profileText.length);
-  console.log("detectedSections", JSON.stringify(experienceParseResult.detectedSections, null, 2));
-  console.log("rawExperienceBlocks", JSON.stringify(experienceParseResult.rawExperienceBlocks, null, 2));
+  debugLog("resumeTextLength", profileText.length);
+  debugJson("detectedSections", experienceParseResult.detectedSections);
+  debugJson("rawExperienceBlocks", experienceParseResult.rawExperienceBlocks);
   const initiallySelectedPrimaryStory = selectPrimaryStory(
     extractedExperiences,
     parsedJob,
@@ -167,9 +168,9 @@ export async function generateApplicationPackage(
     positioningStrategy,
     initiallySelectedSecondaryStory
   );
-  console.log("extractedExperiences", JSON.stringify(extractedExperiences, null, 2));
-  console.log("selectedPrimaryStory", JSON.stringify(selectedPrimaryStory ?? null, null, 2));
-  console.log("selectedSecondaryStory", JSON.stringify(selectedSecondaryStory ?? null, null, 2));
+  debugJson("extractedExperiences", extractedExperiences);
+  debugJson("selectedPrimaryStory", selectedPrimaryStory ?? null);
+  debugJson("selectedSecondaryStory", selectedSecondaryStory ?? null);
 
   if (!selectedPrimaryStory) {
     throw new Error(
@@ -188,53 +189,37 @@ export async function generateApplicationPackage(
     selectedSecondaryStory,
     positioningStrategy
   );
-  console.log("application-package-evidence-ms", Date.now() - payloadStartedAt);
-  console.log("supportedSkills", JSON.stringify(generationPayload.supportedSkills, null, 2));
-  console.log("growthAreas", JSON.stringify(generationPayload.growthAreas, null, 2));
-  console.log(
-    "positioningStrategy",
-    JSON.stringify(generationPayload.positioningStrategy, null, 2)
-  );
-  console.log(
-    "applicationBrief",
-    JSON.stringify(generationPayload.applicationBrief, null, 2)
-  );
+  debugLog("application-package-evidence-ms", Date.now() - payloadStartedAt);
+  debugJson("supportedSkills", generationPayload.supportedSkills);
+  debugJson("growthAreas", generationPayload.growthAreas);
+  debugJson("positioningStrategy", generationPayload.positioningStrategy);
+  debugJson("applicationBrief", generationPayload.applicationBrief);
   const coverLetterInputDebug = buildCoverLetterInputDebug(generationPayload);
-  console.log(
-    "application-package-cover-letter-input",
-    JSON.stringify(coverLetterInputDebug, null, 2)
-  );
+  debugJson("application-package-cover-letter-input", coverLetterInputDebug);
   const validation = validateGenerationPayload(generationPayload);
   if (!validation.ok) {
-    console.log(
-      "generationValidationFailed",
-      JSON.stringify(
-        {
-          failedField: validation.failedField ?? "",
-          reason: validation.reason ?? "",
-          candidateName: generationPayload.candidateName,
-          parsedRole: generationPayload.parsedRole,
-          parsedCompany: generationPayload.parsedCompany ?? "",
-          supportedSkills: generationPayload.supportedSkills,
-          growthAreas: generationPayload.growthAreas,
-          primaryStory: generationPayload.primaryStory ?? null,
-          secondaryStory: generationPayload.secondaryStory ?? null,
-          jobDescriptionPreview: generationPayload.jobDescriptionText
-            .split("\n")
-            .filter(Boolean)
-            .slice(0, 8),
-        },
-        null,
-        2
-      )
-    );
+    debugJson("generationValidationFailed", {
+      failedField: validation.failedField ?? "",
+      reason: validation.reason ?? "",
+      candidateName: generationPayload.candidateName,
+      parsedRole: generationPayload.parsedRole,
+      parsedCompany: generationPayload.parsedCompany ?? "",
+      supportedSkills: generationPayload.supportedSkills,
+      growthAreas: generationPayload.growthAreas,
+      primaryStory: generationPayload.primaryStory ?? null,
+      secondaryStory: generationPayload.secondaryStory ?? null,
+      jobDescriptionPreview: generationPayload.jobDescriptionText
+        .split("\n")
+        .filter(Boolean)
+        .slice(0, 8),
+    });
     throw new Error(
       validation.reason ||
         `Could not extract enough resume evidence to generate a cover letter. Failed field: ${validation.failedField}`
     );
   }
 
-  console.log("application-package-llm-call-count", 1);
+  debugLog("application-package-llm-call-count", 1);
   const llmStartedAt = Date.now();
   const llmResult = await generateStructuredOutput<GeneratedApplicationContent>({
     prompt: GENERATE_APPLICATION_PROMPT,
@@ -242,56 +227,42 @@ export async function generateApplicationPackage(
     outputType: "json",
     jsonSchema: generateApplicationContentJsonSchema,
   });
-  console.log("application-section-generation-ms", Date.now() - llmStartedAt);
+  debugLog("application-section-generation-ms", Date.now() - llmStartedAt);
 
   const fallbackUsed =
     !llmResult?.data?.cover_letter?.trim() || !llmResult.data.email_text?.trim();
 
   if (fallbackUsed) {
-    console.log(
-      "application-package-debug",
-      JSON.stringify(
-        {
-          wasOpenAIUsed: llmResult?.wasOpenAIUsed ?? false,
-          model: llmResult?.model ?? "",
-          rawOpenAIResponse: llmResult?.rawOutputText ?? "",
-          finalCleanedCoverLetter: "",
-          candidateName: generationPayload.candidateName,
-          parsedRole: generationPayload.parsedRole,
-          parsedCompany: generationPayload.parsedCompany ?? "",
-          fallbackUsed: true,
-          openAIError:
-            llmResult?.error ??
-            "OpenAI did not return usable cover letter/email content."
-        },
-        null,
-        2
-      )
-    );
+    debugJson("application-package-debug", {
+      wasOpenAIUsed: llmResult?.wasOpenAIUsed ?? false,
+      model: llmResult?.model ?? "",
+      rawOpenAIResponse: llmResult?.rawOutputText ?? "",
+      finalCleanedCoverLetter: "",
+      candidateName: generationPayload.candidateName,
+      parsedRole: generationPayload.parsedRole,
+      parsedCompany: generationPayload.parsedCompany ?? "",
+      fallbackUsed: true,
+      openAIError:
+        llmResult?.error ??
+        "OpenAI did not return usable cover letter/email content."
+    });
   }
 
   const cleanupStartedAt = Date.now();
   const documents = finalizeGeneratedDocuments(llmResult.data, generationPayload);
-  console.log("cleanupTotalDuration", Date.now() - cleanupStartedAt);
-  console.log(
-    "application-package-debug",
-    JSON.stringify(
-      {
-        wasOpenAIUsed: llmResult.wasOpenAIUsed,
-        model: llmResult.model,
-        rawOpenAIResponse: llmResult.rawOutputText,
-        finalCleanedCoverLetter: documents.coverLetter,
-        candidateName: generationPayload.candidateName,
-        parsedRole: generationPayload.parsedRole,
-        parsedCompany: generationPayload.parsedCompany ?? "",
-        fallbackUsed,
-        openAIError: llmResult.error ?? ""
-      },
-      null,
-      2
-    )
-  );
-  console.log("application-package-total-ms", Date.now() - totalStartedAt);
+  debugLog("cleanupTotalDuration", Date.now() - cleanupStartedAt);
+  debugJson("application-package-debug", {
+    wasOpenAIUsed: llmResult.wasOpenAIUsed,
+    model: llmResult.model,
+    rawOpenAIResponse: llmResult.rawOutputText,
+    finalCleanedCoverLetter: documents.coverLetter,
+    candidateName: generationPayload.candidateName,
+    parsedRole: generationPayload.parsedRole,
+    parsedCompany: generationPayload.parsedCompany ?? "",
+    fallbackUsed,
+    openAIError: llmResult.error ?? ""
+  });
+  debugLog("application-package-total-ms", Date.now() - totalStartedAt);
 
   return {
     documents,
@@ -936,7 +907,7 @@ function looksLikeExperienceHeading(line: string) {
 
 function parseExperienceBlock(block: string): ExperienceEvidenceCard | null {
   if (looksLikeHeaderOnlyBlock(block)) {
-    console.log("rejectReason", JSON.stringify({ block, reason: "header-only block" }, null, 2));
+    debugJson("rejectReason", { block, reason: "header-only block" });
     return null;
   }
 
@@ -947,7 +918,7 @@ function parseExperienceBlock(block: string): ExperienceEvidenceCard | null {
     .filter((line) => !looksLikePureContactLine(line));
 
   if (lines.length === 0) {
-    console.log("rejectReason", JSON.stringify({ block, reason: "empty after contact filtering" }, null, 2));
+    debugJson("rejectReason", { block, reason: "empty after contact filtering" });
     return null;
   }
 
@@ -960,7 +931,7 @@ function parseExperienceBlock(block: string): ExperienceEvidenceCard | null {
   const contentLines = bodyLines.length > 0 ? bodyLines : lines.filter((line) => line.length > 15);
 
   if (contentLines.length === 0) {
-    console.log("rejectReason", JSON.stringify({ block, reason: "no substantial content lines" }, null, 2));
+    debugJson("rejectReason", { block, reason: "no substantial content lines" });
     return null;
   }
 
@@ -981,15 +952,15 @@ function parseExperienceBlock(block: string): ExperienceEvidenceCard | null {
   );
 
   if (!hasActionLikeContent && !hasTechnicalOrWorkKeywords) {
-    console.log(
-      "rejectReason",
-      JSON.stringify({ block, reason: "missing verbs/technical/work keywords" }, null, 2)
-    );
+    debugJson("rejectReason", {
+      block,
+      reason: "missing verbs/technical/work keywords"
+    });
     return null;
   }
 
   if (actions.length === 0 && !context) {
-    console.log("rejectReason", JSON.stringify({ block, reason: "no usable actions or context" }, null, 2));
+    debugJson("rejectReason", { block, reason: "no usable actions or context" });
     return null;
   }
   const outcome = contentLines.find((line) =>
@@ -1031,7 +1002,7 @@ function selectPrimaryStory(
       score: scoreExperience(experience, jobText)
     }))
     .sort((left, right) => right.score - left.score);
-  console.log("scoredExperienceBlocks", JSON.stringify(scored, null, 2));
+  debugJson("scoredExperienceBlocks", scored);
 
   if (scored[0]?.score && scored[0].score > 0) {
     return scored[0].experience;

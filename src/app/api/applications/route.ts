@@ -6,6 +6,7 @@ import {
 } from "@/lib/db/queries";
 import { getAuthenticatedSupabaseUser } from "@/lib/db/supabase";
 import { parseProfileText } from "@/lib/engines/profileEngine";
+import { debugLog } from "@/lib/logging";
 import type {
   ApplicationDocs,
   ApplicationStatus,
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
 
     const parseStartedAt = Date.now();
     const parsedResume = await parseProfileText(body.profileText);
-    console.log("application-save-parse-ms", Date.now() - parseStartedAt);
+    debugLog("application-save-parse-ms", Date.now() - parseStartedAt);
     const saveStartedAt = Date.now();
     const savedApplication = await saveGeneratedApplication({
       userId: user.id,
@@ -104,8 +105,8 @@ export async function POST(request: Request) {
       status: body.status ?? "draft",
       notes: body.notes ?? null
     });
-    console.log("application-save-db-ms", Date.now() - saveStartedAt);
-    console.log("application-save-total-ms", Date.now() - startedAt);
+    debugLog("application-save-db-ms", Date.now() - saveStartedAt);
+    debugLog("application-save-total-ms", Date.now() - startedAt);
 
     return NextResponse.json(savedApplication, { status: 201 });
   } catch (error) {

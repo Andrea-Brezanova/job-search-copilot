@@ -277,9 +277,6 @@ export function Workspace() {
     setGenerationStageIndex(0);
 
     try {
-      console.log("RESUME_TEXT_PREVIEW:", profileText.slice(0, 200));
-      console.log("JOB_DESC_PREVIEW:", jobDescription.slice(0, 200));
-
       const response = await fetch("/api/generate-application-package", {
         method: "POST",
         headers: {
