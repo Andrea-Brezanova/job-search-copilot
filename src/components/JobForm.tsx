@@ -1,10 +1,13 @@
 // This file renders the job description textarea input.
+import type { RefObject } from "react";
+
 type JobFormProps = {
   value: string;
   onChange: (value: string) => void;
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 };
 
-export function JobForm({ value, onChange }: JobFormProps) {
+export function JobForm({ value, onChange, textareaRef }: JobFormProps) {
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="mb-4">
@@ -17,6 +20,7 @@ export function JobForm({ value, onChange }: JobFormProps) {
       <label className="block">
         <span className="sr-only">Job description text</span>
         <textarea
+          ref={textareaRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Example: We are looking for a frontend engineer with React, TypeScript, accessibility, and design system experience..."

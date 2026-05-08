@@ -20,6 +20,7 @@ export function Workspace() {
   const router = useRouter();
   const { session } = useAuth();
   const profileTextRef = useRef("");
+  const jobDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const generationStages = [
     "Reading your resume...",
     "Reading the job description...",
@@ -57,6 +58,8 @@ export function Workspace() {
   const [isUsingSavedResume, setIsUsingSavedResume] = useState(false);
   const [loadedDefaultResumeForUserId, setLoadedDefaultResumeForUserId] =
     useState<string | null>(null);
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
+  const [hasGeneratedFirstPackage, setHasGeneratedFirstPackage] = useState(false);
 
   useEffect(() => {
     profileTextRef.current = profileText;
@@ -92,6 +95,7 @@ export function Workspace() {
         setIsDefaultResumeLoading(false);
         setDefaultResumeError("");
         setDefaultResumeMessage("");
+        setIsFirstTimeUser(false);
         return;
       }
 
@@ -103,28 +107,52 @@ export function Workspace() {
       setDefaultResumeError("");
 
       try {
-        const response = await fetch("/api/resume-default", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const [resumeResponse, applicationsResponse] = await Promise.all([
+          fetch("/api/resume-default", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+          fetch("/api/applications", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+        ]);
 
-        const data = (await response.json()) as {
+        const resumeData = (await resumeResponse.json()) as {
           error?: string;
           resume?: { raw_resume_text?: string | null } | null;
         };
+        const applicationsData = (await applicationsResponse.json()) as
+          | { error?: string }
+          | Array<{ id: string }>;
 
-        if (!response.ok) {
-          throw new Error(data.error ?? "Unable to load the saved resume.");
+        if (!resumeResponse.ok) {
+          throw new Error(resumeData.error ?? "Unable to load the saved resume.");
         }
 
-        const savedResumeText = data.resume?.raw_resume_text?.trim() ?? "";
+        if (!applicationsResponse.ok) {
+          const errorMessage =
+            !Array.isArray(applicationsData) && applicationsData.error
+              ? applicationsData.error
+              : "Unable to load saved applications.";
+          throw new Error(errorMessage);
+        }
+
+        const savedResumeText = resumeData.resume?.raw_resume_text?.trim() ?? "";
+        const hasSavedApplications =
+          Array.isArray(applicationsData) && applicationsData.length > 0;
 
         if (savedResumeText && !profileTextRef.current.trim() && isActive) {
           setProfileText(savedResumeText);
           profileTextRef.current = savedResumeText;
           setIsUsingSavedResume(true);
           setDefaultResumeMessage("Using saved resume.");
+        }
+
+        if (isActive) {
+          setIsFirstTimeUser(!savedResumeText && !hasSavedApplications);
         }
       } catch (error) {
         if (isActive) {
@@ -233,6 +261,12 @@ export function Workspace() {
     setSaveMessage("");
     setIsUsingSavedResume(false);
     setDefaultResumeMessage("");
+
+    if (value.trim() && !jobDescription.trim()) {
+      window.setTimeout(() => {
+        jobDescriptionRef.current?.focus();
+      }, 0);
+    }
   }
 
   function handleJobDescriptionChange(value: string) {
@@ -275,6 +309,7 @@ export function Workspace() {
 
     setIsGenerating(true);
     setGenerationStageIndex(0);
+    setHasGeneratedFirstPackage(false);
 
     try {
       const response = await fetch("/api/generate-application-package", {
@@ -294,6 +329,7 @@ export function Workspace() {
       }
 
       setApplicationPackage(data as ApplicationPackage);
+      setHasGeneratedFirstPackage(true);
       setSaveMessage(
         "Application package generated. Review the drafts, then save your application.",
       );
@@ -403,6 +439,7 @@ export function Workspace() {
       }
 
       setIsUsingSavedResume(true);
+      setIsFirstTimeUser(false);
       setDefaultResumeMessage("Saved as your default resume.");
     } catch (error) {
       setDefaultResumeError(
@@ -463,8 +500,56 @@ export function Workspace() {
           <JobForm
             value={jobDescription}
             onChange={handleJobDescriptionChange}
+            textareaRef={jobDescriptionRef}
           />
         </section>
+
+        {session?.user && isFirstTimeUser ? (
+          <section className="mt-6 rounded-2xl border border-brand-200 bg-brand-50/60 p-6 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-stone-900">
+                  Get started
+                </h2>
+                <p className="mt-1 text-sm text-stone-600">
+                  Complete these three steps to generate your first application package.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={generateApplicationPackage}
+                disabled={!canSubmitWithCurrentResumeInput() || isGenerating}
+                className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
+              >
+                {isGenerating ? "Generating..." : "Generate your first application"}
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <OnboardingChecklistItem
+                step="Step 1"
+                title="Add your resume"
+                completed={hasResumeText}
+              />
+              <OnboardingChecklistItem
+                step="Step 2"
+                title="Paste a job description"
+                completed={hasJobText}
+              />
+              <OnboardingChecklistItem
+                step="Step 3"
+                title="Generate your first application"
+                completed={hasGeneratedFirstPackage}
+              />
+            </div>
+
+            {hasGeneratedFirstPackage ? (
+              <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                Your first application is ready. Save it to track it.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="mt-6 flex flex-col items-center">
           <button
@@ -538,6 +623,41 @@ export function Workspace() {
         ) : null}
       </div>
     </main>
+  );
+}
+
+function OnboardingChecklistItem({
+  step,
+  title,
+  completed,
+}: {
+  step: string;
+  title: string;
+  completed: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+      <div className="flex items-start gap-3">
+        <div
+          className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
+            completed
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-stone-100 text-stone-500"
+          }`}
+        >
+          {completed ? "✓" : step.replace("Step ", "")}
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+            {step}
+          </p>
+          <p className="mt-1 text-sm font-medium text-stone-900">{title}</p>
+          <p className="mt-1 text-sm text-stone-600">
+            {completed ? "Completed" : "Not completed yet"}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
