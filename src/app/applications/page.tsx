@@ -1,8 +1,8 @@
 "use client";
 
-// This file lists saved applications from Supabase.
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import type { ApplicationRecord, ApplicationStatus } from "@/lib/types";
 
@@ -24,7 +24,9 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [isPageLoading, setIsPageLoading] = useState(true);
-  const [selectedStatus, setSelectedStatus] = useState<"all" | ApplicationStatus>("all");
+  const [selectedStatus, setSelectedStatus] = useState<"all" | ApplicationStatus>(
+    "all",
+  );
 
   useEffect(() => {
     async function loadApplications() {
@@ -56,7 +58,7 @@ export default function ApplicationsPage() {
         setApplications(data as ApplicationRecord[]);
       } catch (error) {
         setErrorMessage(
-          error instanceof Error ? error.message : "An unexpected error occurred."
+          error instanceof Error ? error.message : "An unexpected error occurred.",
         );
       } finally {
         setIsPageLoading(false);
@@ -70,38 +72,97 @@ export default function ApplicationsPage() {
 
   const isLoading = isAuthLoading || isPageLoading;
   const isLoggedOut = !isAuthLoading && !session;
-  const sortedApplications = [...applications].sort((left, right) => {
-    const leftNeedsAttention = needsAttention(left);
-    const rightNeedsAttention = needsAttention(right);
 
-    if (leftNeedsAttention !== rightNeedsAttention) {
-      return leftNeedsAttention ? -1 : 1;
-    }
+  const sortedApplications = useMemo(
+    () =>
+      [...applications].sort((left, right) => {
+        const leftNeedsAttention = needsAttention(left);
+        const rightNeedsAttention = needsAttention(right);
 
-    const leftFollowUp = left.follow_up_at ? new Date(left.follow_up_at).getTime() : Number.MAX_SAFE_INTEGER;
-    const rightFollowUp = right.follow_up_at ? new Date(right.follow_up_at).getTime() : Number.MAX_SAFE_INTEGER;
+        if (leftNeedsAttention !== rightNeedsAttention) {
+          return leftNeedsAttention ? -1 : 1;
+        }
 
-    if (leftFollowUp !== rightFollowUp) {
-      return leftFollowUp - rightFollowUp;
-    }
+        const leftFollowUp = left.follow_up_at
+          ? new Date(left.follow_up_at).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        const rightFollowUp = right.follow_up_at
+          ? new Date(right.follow_up_at).getTime()
+          : Number.MAX_SAFE_INTEGER;
 
-    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
-  });
-  const attentionItems = sortedApplications.filter((application) =>
-    needsAttention(application),
+        if (leftFollowUp !== rightFollowUp) {
+          return leftFollowUp - rightFollowUp;
+        }
+
+        return (
+          new Date(right.created_at).getTime() -
+          new Date(left.created_at).getTime()
+        );
+      }),
+    [applications],
   );
-  const filteredApplications = sortedApplications.filter((application) =>
-    selectedStatus === "all" ? true : application.status === selectedStatus,
+
+  const filteredApplications = useMemo(
+    () =>
+      sortedApplications.filter((application) =>
+        selectedStatus === "all" ? true : application.status === selectedStatus,
+      ),
+    [selectedStatus, sortedApplications],
+  );
+
+  const groupedApplications = useMemo(() => {
+    const followUpsDue = filteredApplications.filter((application) =>
+      needsAttention(application),
+    );
+    const activeApplications = filteredApplications.filter(
+      (application) =>
+        !needsAttention(application) &&
+        (application.status === "applied" || application.status === "interview"),
+    );
+    const archivedApplications = filteredApplications.filter(
+      (application) =>
+        application.status === "rejected" || application.status === "archived",
+    );
+    const otherApplications = filteredApplications.filter(
+      (application) =>
+        !followUpsDue.some((item) => item.id === application.id) &&
+        !activeApplications.some((item) => item.id === application.id) &&
+        !archivedApplications.some((item) => item.id === application.id),
+    );
+
+    return {
+      followUpsDue,
+      activeApplications,
+      archivedApplications,
+      otherApplications,
+    };
+  }, [filteredApplications]);
+
+  const summary = useMemo(
+    () => ({
+      total: applications.length,
+      applied: applications.filter((application) => application.status === "applied")
+        .length,
+      interview: applications.filter(
+        (application) => application.status === "interview",
+      ).length,
+      rejected: applications.filter(
+        (application) => application.status === "rejected",
+      ).length,
+      followUpsDue: applications.filter((application) => needsAttention(application))
+        .length,
+    }),
+    [applications],
   );
 
   return (
-    <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
+    <main className="mx-auto min-h-screen max-w-6xl px-6 py-12">
       <header className="max-w-2xl">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
-          Saved Applications
+          Applications Dashboard
         </p>
         <h1 className="mt-4 text-4xl font-semibold tracking-tight text-stone-900">
-          Review and update your application packages.
+          Track what needs attention and keep your application pipeline organized.
         </h1>
       </header>
 
@@ -144,116 +205,84 @@ export default function ApplicationsPage() {
       ) : null}
 
       {!isLoading && !isLoggedOut && applications.length > 0 ? (
-        <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Filter by status
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {statusFilters.map((filter) => {
-              const isActive = selectedStatus === filter.value;
+        <>
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <SummaryCard label="Total applications" value={summary.total} />
+            <SummaryCard label="Applied" value={summary.applied} />
+            <SummaryCard label="Interview" value={summary.interview} />
+            <SummaryCard label="Rejected" value={summary.rejected} />
+            <SummaryCard
+              label="Follow-ups due"
+              value={summary.followUpsDue}
+              tone={summary.followUpsDue > 0 ? "alert" : "default"}
+            />
+          </section>
 
-              return (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setSelectedStatus(filter.value)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    isActive
-                      ? "bg-brand-700 text-white"
-                      : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              );
-            })}
+          <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+              Filter by status
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {statusFilters.map((filter) => {
+                const isActive = selectedStatus === filter.value;
+
+                return (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => setSelectedStatus(filter.value)}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                      isActive
+                        ? "bg-brand-700 text-white"
+                        : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <div className="mt-8 grid gap-8">
+            <ApplicationsSection
+              title="Follow-ups due"
+              description="Applied roles that are ready for follow-up today or are already overdue."
+              applications={groupedApplications.followUpsDue}
+              emptyState="No follow-ups are due right now."
+              highlightTone="alert"
+            />
+
+            <ApplicationsSection
+              title="Active applications"
+              description="Applications still in motion, including active submissions and interviews."
+              applications={groupedApplications.activeApplications}
+              emptyState="No active applications match this filter."
+            />
+
+            <ApplicationsSection
+              title="Archived / Closed"
+              description="Rejected and archived applications you may want to reference later."
+              applications={groupedApplications.archivedApplications}
+              emptyState="No closed applications match this filter."
+            />
+
+            {groupedApplications.otherApplications.length > 0 ? (
+              <ApplicationsSection
+                title="Other applications"
+                description="Drafts, offers, and other applications outside the main tracking buckets."
+                applications={groupedApplications.otherApplications}
+                emptyState="No additional applications match this filter."
+              />
+            ) : null}
           </div>
-        </section>
+        </>
       ) : null}
 
-      {!isLoading && !isLoggedOut && attentionItems.length > 0 ? (
-        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                Needs attention
-              </p>
-              <h2 className="mt-2 text-lg font-semibold text-stone-900">
-                Follow-up reminders
-              </h2>
-              <p className="mt-1 text-sm text-stone-700">
-                These applied roles have a follow-up date due today or earlier.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3">
-            {attentionItems.map((application) => (
-              <Link
-                key={`attention-${application.id}`}
-                href={`/applications/${application.id}`}
-                className="rounded-xl border border-amber-200 bg-white px-4 py-4 transition hover:border-amber-300"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold text-stone-900">
-                      {application.role_title}
-                    </p>
-                    <p className="mt-1 text-sm text-stone-600">
-                      {application.company_name ?? "Company not parsed yet"}
-                    </p>
-                  </div>
-                  <p className="text-sm font-semibold text-rose-700">
-                    Follow-up due {formatDate(application.follow_up_at)}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="mt-6 grid gap-4">
-        {filteredApplications.map((application) => (
-          <Link
-            key={application.id}
-            href={`/applications/${application.id}`}
-            className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm transition hover:border-stone-300 hover:shadow"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-stone-900">
-                  {application.role_title}
-                </h2>
-                <p className="mt-1 text-sm text-stone-600">
-                  {application.company_name ?? "Company not parsed yet"}
-                </p>
-              </div>
-
-              <div className="text-right">
-                <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-                  Status
-                </p>
-                <p className="mt-2 inline-flex rounded-full bg-stone-100 px-3 py-1 text-sm font-medium capitalize text-stone-800">
-                  {application.status}
-                </p>
-                <p
-                  className={`mt-2 text-sm ${
-                    needsAttention(application) ? "font-semibold text-rose-700" : "text-stone-600"
-                  }`}
-                >
-                  Follow-up: {formatDate(application.follow_up_at)}
-                </p>
-                <p className="mt-1 text-sm text-stone-600">
-                  Added: {formatDate(application.created_at)}
-                </p>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </section>
-
-      {!isLoading && !isLoggedOut && applications.length > 0 && filteredApplications.length === 0 ? (
+      {!isLoading &&
+      !isLoggedOut &&
+      applications.length > 0 &&
+      filteredApplications.length === 0 ? (
         <section className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-6">
           <p className="text-sm text-stone-600">
             No applications match the selected status filter.
@@ -264,12 +293,163 @@ export default function ApplicationsPage() {
   );
 }
 
-function needsAttention(application: ApplicationRecord) {
-  if (application.status !== "applied" || !application.follow_up_at) {
-    return false;
-  }
+function SummaryCard({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  tone?: "default" | "alert";
+}) {
+  return (
+    <article
+      className={`rounded-2xl border p-5 shadow-sm ${
+        tone === "alert"
+          ? "border-amber-200 bg-amber-50"
+          : "border-stone-200 bg-white"
+      }`}
+    >
+      <p className="text-sm font-medium text-stone-600">{label}</p>
+      <p
+        className={`mt-3 text-3xl font-semibold ${
+          tone === "alert" ? "text-amber-800" : "text-stone-900"
+        }`}
+      >
+        {value}
+      </p>
+    </article>
+  );
+}
 
-  return new Date(application.follow_up_at).getTime() <= Date.now();
+function ApplicationsSection({
+  title,
+  description,
+  applications,
+  emptyState,
+  highlightTone = "default",
+}: {
+  title: string;
+  description: string;
+  applications: ApplicationRecord[];
+  emptyState: string;
+  highlightTone?: "default" | "alert";
+}) {
+  return (
+    <section>
+      <div className="mb-4">
+        <h2 className="text-2xl font-semibold text-stone-900">{title}</h2>
+        <p className="mt-1 text-sm text-stone-600">{description}</p>
+      </div>
+
+      {applications.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
+          <p className="text-sm text-stone-600">{emptyState}</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {applications.map((application) => (
+            <ApplicationCard
+              key={application.id}
+              application={application}
+              highlightTone={highlightTone}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ApplicationCard({
+  application,
+  highlightTone,
+}: {
+  application: ApplicationRecord;
+  highlightTone: "default" | "alert";
+}) {
+  const isOverdue = needsAttention(application);
+
+  return (
+    <article
+      className={`rounded-2xl border p-6 shadow-sm ${
+        highlightTone === "alert" || isOverdue
+          ? "border-amber-200 bg-amber-50/50"
+          : "border-stone-200 bg-white"
+      }`}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h3 className="text-xl font-semibold text-stone-900">
+            {application.role_title}
+          </h3>
+          <p className="mt-1 text-sm text-stone-600">
+            {application.company_name ?? "Company not parsed yet"}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusBadge status={application.status} />
+          <Link
+            href={`/applications/${application.id}`}
+            className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition hover:border-stone-400 hover:bg-stone-50"
+          >
+            View details
+          </Link>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <MetadataItem label="Applied">
+          {formatDate(application.applied_at)}
+        </MetadataItem>
+        <MetadataItem label="Follow-up">
+          <span
+            className={isOverdue ? "font-semibold text-rose-700" : undefined}
+          >
+            {formatDate(application.follow_up_at)}
+          </span>
+        </MetadataItem>
+        <MetadataItem label="Added">{formatDate(application.created_at)}</MetadataItem>
+      </div>
+    </article>
+  );
+}
+
+function StatusBadge({ status }: { status: ApplicationStatus }) {
+  const statusStyles: Record<ApplicationStatus, string> = {
+    draft: "bg-stone-100 text-stone-700",
+    applied: "bg-brand-100 text-brand-800",
+    interview: "bg-sky-100 text-sky-800",
+    offer: "bg-emerald-100 text-emerald-800",
+    rejected: "bg-rose-100 text-rose-800",
+    archived: "bg-stone-200 text-stone-700",
+  };
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-3 py-1 text-sm font-medium capitalize ${statusStyles[status]}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+function MetadataItem({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-stone-200 bg-white px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+        {label}
+      </p>
+      <p className="mt-2 text-sm text-stone-700">{children}</p>
+    </div>
+  );
 }
 
 function formatDate(value?: string | null) {
@@ -277,9 +457,23 @@ function formatDate(value?: string | null) {
     return "Not set";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not set";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
     month: "short",
     day: "numeric",
-    year: "numeric",
-  }).format(new Date(value));
+  });
+}
+
+function needsAttention(application: ApplicationRecord) {
+  if (application.status !== "applied" || !application.follow_up_at) {
+    return false;
+  }
+
+  return new Date(application.follow_up_at).getTime() <= Date.now();
 }
