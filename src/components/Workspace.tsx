@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 
 export function Workspace() {
+  const isDev = process.env.NODE_ENV !== "production";
   const router = useRouter();
   const { session } = useAuth();
   const profileTextRef = useRef("");
@@ -58,7 +59,8 @@ export function Workspace() {
   const [isUsingSavedResume, setIsUsingSavedResume] = useState(false);
   const [loadedDefaultResumeForUserId, setLoadedDefaultResumeForUserId] =
     useState<string | null>(null);
-  const [hasSavedApplications, setHasSavedApplications] = useState(false);
+  const [applicationsCount, setApplicationsCount] = useState(0);
+  const [hasDefaultResume, setHasDefaultResume] = useState(false);
   const [hasGeneratedFirstPackage, setHasGeneratedFirstPackage] = useState(false);
 
   useEffect(() => {
@@ -95,7 +97,8 @@ export function Workspace() {
         setIsDefaultResumeLoading(false);
         setDefaultResumeError("");
         setDefaultResumeMessage("");
-        setHasSavedApplications(false);
+        setApplicationsCount(0);
+        setHasDefaultResume(false);
         setHasGeneratedFirstPackage(false);
         return;
       }
@@ -142,8 +145,9 @@ export function Workspace() {
         }
 
         const savedResumeText = resumeData.resume?.raw_resume_text?.trim() ?? "";
-        const userHasSavedApplications =
-          Array.isArray(applicationsData) && applicationsData.length > 0;
+        const nextApplicationsCount = Array.isArray(applicationsData)
+          ? applicationsData.length
+          : 0;
 
         if (savedResumeText && !profileTextRef.current.trim() && isActive) {
           setProfileText(savedResumeText);
@@ -153,7 +157,8 @@ export function Workspace() {
         }
 
         if (isActive) {
-          setHasSavedApplications(userHasSavedApplications);
+          setApplicationsCount(nextApplicationsCount);
+          setHasDefaultResume(Boolean(savedResumeText));
           setHasGeneratedFirstPackage(false);
         }
       } catch (error) {
@@ -384,7 +389,7 @@ export function Workspace() {
       }
 
       setSavedApplicationId((data as { id: string }).id);
-      setHasSavedApplications(true);
+      setApplicationsCount((currentCount) => Math.max(1, currentCount + 1));
       setSaveMessage("Application saved to Supabase.");
       router.push("/applications");
     } catch (error) {
@@ -436,6 +441,7 @@ export function Workspace() {
       }
 
       setIsUsingSavedResume(true);
+      setHasDefaultResume(true);
       setDefaultResumeMessage("Saved as your default resume.");
     } catch (error) {
       setDefaultResumeError(
@@ -465,7 +471,8 @@ export function Workspace() {
     applicationPackage?.parsedJob.title,
     applicationPackage?.parsedJob.company,
   );
-  const shouldShowOnboarding = Boolean(session?.user) && !hasSavedApplications;
+  const isLoggedIn = Boolean(session?.user);
+  const shouldShowOnboarding = isLoggedIn && applicationsCount === 0;
 
   function canSubmitWithCurrentResumeInput() {
     // The backend endpoints still need extracted resume text, so generation stays blocked
@@ -488,43 +495,18 @@ export function Workspace() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">
       <div className="mx-auto max-w-6xl px-6 py-12">
-        <section className="grid gap-6 lg:grid-cols-2">
-          <ResumeForm
-            onChange={handleProfileTextChange}
-            onFileChange={handleResumeFileChange}
-            isUploading={isUploading}
-            uploadError={uploadError}
-            uploadSuccess={uploadSuccess}
-            uploadedFileName={uploadedFileName}
-            uploadNote={uploadNote}
-            isDefaultResumeLoading={isDefaultResumeLoading}
-            isSavingDefaultResume={isSavingDefaultResume}
-            defaultResumeMessage={defaultResumeMessage}
-            defaultResumeError={defaultResumeError}
-            isUsingSavedResume={isUsingSavedResume}
-            showDefaultResumeActions={Boolean(session?.user)}
-            canSaveDefaultResume={Boolean(profileText.trim())}
-            onSaveDefaultResume={saveDefaultResume}
-          />
-          <JobForm
-            value={jobDescription}
-            onChange={handleJobDescriptionChange}
-            textareaRef={jobDescriptionRef}
-          />
-        </section>
-
         {shouldShowOnboarding ? (
-          <section className="mt-8 rounded-3xl border border-brand-200 bg-[linear-gradient(180deg,rgba(232,243,236,0.95),rgba(255,255,255,0.98))] p-6 shadow-md ring-1 ring-brand-100">
+          <section className="mb-8 rounded-3xl border border-brand-300 bg-[linear-gradient(180deg,rgba(222,238,228,1),rgba(249,250,249,1))] p-6 shadow-lg ring-1 ring-brand-100">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
+              <div className="max-w-2xl">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
                   Onboarding
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold text-stone-900">
-                  Get started in 30 seconds
+                  Create your first application package
                 </h2>
-                <p className="mt-2 text-sm text-stone-600">
-                  Add your resume, paste a job description, and generate your first application package.
+                <p className="mt-2 text-sm leading-6 text-stone-600">
+                  Add your resume, paste a job description, and generate your first application package. Once it looks good, save it to start tracking your applications.
                 </p>
               </div>
               <button
@@ -536,6 +518,15 @@ export function Workspace() {
                 {isGenerating ? "Generating..." : "Generate your first application"}
               </button>
             </div>
+
+            {isDev ? (
+              <div className="mt-4 rounded-xl border border-dashed border-stone-300 bg-white/70 px-4 py-3 text-xs text-stone-600">
+                <p><span className="font-semibold">isLoggedIn:</span> {String(isLoggedIn)}</p>
+                <p><span className="font-semibold">applicationsCount:</span> {applicationsCount}</p>
+                <p><span className="font-semibold">hasDefaultResume:</span> {String(hasDefaultResume)}</p>
+                <p><span className="font-semibold">shouldShowOnboarding:</span> {String(shouldShowOnboarding)}</p>
+              </div>
+            ) : null}
 
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               <OnboardingChecklistItem
@@ -562,6 +553,31 @@ export function Workspace() {
             ) : null}
           </section>
         ) : null}
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          <ResumeForm
+            onChange={handleProfileTextChange}
+            onFileChange={handleResumeFileChange}
+            isUploading={isUploading}
+            uploadError={uploadError}
+            uploadSuccess={uploadSuccess}
+            uploadedFileName={uploadedFileName}
+            uploadNote={uploadNote}
+            isDefaultResumeLoading={isDefaultResumeLoading}
+            isSavingDefaultResume={isSavingDefaultResume}
+            defaultResumeMessage={defaultResumeMessage}
+            defaultResumeError={defaultResumeError}
+            isUsingSavedResume={isUsingSavedResume}
+            showDefaultResumeActions={Boolean(session?.user)}
+            canSaveDefaultResume={Boolean(profileText.trim())}
+            onSaveDefaultResume={saveDefaultResume}
+          />
+          <JobForm
+            value={jobDescription}
+            onChange={handleJobDescriptionChange}
+            textareaRef={jobDescriptionRef}
+          />
+        </section>
 
         <section className="mt-6 flex flex-col items-center">
           <button
