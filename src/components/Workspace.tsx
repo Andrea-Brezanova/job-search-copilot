@@ -58,7 +58,7 @@ export function Workspace() {
   const [isUsingSavedResume, setIsUsingSavedResume] = useState(false);
   const [loadedDefaultResumeForUserId, setLoadedDefaultResumeForUserId] =
     useState<string | null>(null);
-  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
+  const [hasSavedApplications, setHasSavedApplications] = useState(false);
   const [hasGeneratedFirstPackage, setHasGeneratedFirstPackage] = useState(false);
 
   useEffect(() => {
@@ -95,7 +95,8 @@ export function Workspace() {
         setIsDefaultResumeLoading(false);
         setDefaultResumeError("");
         setDefaultResumeMessage("");
-        setIsFirstTimeUser(false);
+        setHasSavedApplications(false);
+        setHasGeneratedFirstPackage(false);
         return;
       }
 
@@ -141,7 +142,7 @@ export function Workspace() {
         }
 
         const savedResumeText = resumeData.resume?.raw_resume_text?.trim() ?? "";
-        const hasSavedApplications =
+        const userHasSavedApplications =
           Array.isArray(applicationsData) && applicationsData.length > 0;
 
         if (savedResumeText && !profileTextRef.current.trim() && isActive) {
@@ -152,7 +153,8 @@ export function Workspace() {
         }
 
         if (isActive) {
-          setIsFirstTimeUser(!savedResumeText && !hasSavedApplications);
+          setHasSavedApplications(userHasSavedApplications);
+          setHasGeneratedFirstPackage(false);
         }
       } catch (error) {
         if (isActive) {
@@ -262,11 +264,6 @@ export function Workspace() {
     setIsUsingSavedResume(false);
     setDefaultResumeMessage("");
 
-    if (value.trim() && !jobDescription.trim()) {
-      window.setTimeout(() => {
-        jobDescriptionRef.current?.focus();
-      }, 0);
-    }
   }
 
   function handleJobDescriptionChange(value: string) {
@@ -309,7 +306,6 @@ export function Workspace() {
 
     setIsGenerating(true);
     setGenerationStageIndex(0);
-    setHasGeneratedFirstPackage(false);
 
     try {
       const response = await fetch("/api/generate-application-package", {
@@ -388,6 +384,7 @@ export function Workspace() {
       }
 
       setSavedApplicationId((data as { id: string }).id);
+      setHasSavedApplications(true);
       setSaveMessage("Application saved to Supabase.");
       router.push("/applications");
     } catch (error) {
@@ -439,7 +436,6 @@ export function Workspace() {
       }
 
       setIsUsingSavedResume(true);
-      setIsFirstTimeUser(false);
       setDefaultResumeMessage("Saved as your default resume.");
     } catch (error) {
       setDefaultResumeError(
@@ -469,12 +465,25 @@ export function Workspace() {
     applicationPackage?.parsedJob.title,
     applicationPackage?.parsedJob.company,
   );
+  const shouldShowOnboarding = Boolean(session?.user) && !hasSavedApplications;
 
   function canSubmitWithCurrentResumeInput() {
     // The backend endpoints still need extracted resume text, so generation stays blocked
     // until the uploaded file has been parsed successfully.
     return hasJobText && hasResumeText;
   }
+
+  useEffect(() => {
+    if (!shouldShowOnboarding || !hasResumeText || hasJobText) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      jobDescriptionRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasJobText, hasResumeText, shouldShowOnboarding]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">
@@ -504,15 +513,18 @@ export function Workspace() {
           />
         </section>
 
-        {session?.user && isFirstTimeUser ? (
-          <section className="mt-6 rounded-2xl border border-brand-200 bg-brand-50/60 p-6 shadow-sm">
+        {shouldShowOnboarding ? (
+          <section className="mt-8 rounded-3xl border border-brand-200 bg-[linear-gradient(180deg,rgba(232,243,236,0.95),rgba(255,255,255,0.98))] p-6 shadow-md ring-1 ring-brand-100">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-stone-900">
-                  Get started
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
+                  Onboarding
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-stone-900">
+                  Get started in 30 seconds
                 </h2>
-                <p className="mt-1 text-sm text-stone-600">
-                  Complete these three steps to generate your first application package.
+                <p className="mt-2 text-sm text-stone-600">
+                  Add your resume, paste a job description, and generate your first application package.
                 </p>
               </div>
               <button
