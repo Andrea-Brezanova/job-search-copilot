@@ -21,6 +21,7 @@ function createSelectChain(result: { data: unknown; error: unknown }) {
   const chain = {
     data: result.data,
     error: result.error,
+    delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
@@ -71,6 +72,68 @@ describe("db queries user scoping", () => {
         status: "draft",
       } as never)
     ).rejects.toThrow("saveGeneratedApplication requires a userId.");
+  });
+
+  it("saveGeneratedApplication reuses an existing matching resume snapshot", async () => {
+    const existingResumeChain = createSelectChain({
+      data: {
+        id: "resume-1",
+        user_id: "user-123",
+        raw_resume_text: "resume",
+      },
+      error: null,
+    });
+    const applicationsInsertChain = createSelectChain({
+      data: { id: "app-1", user_id: "user-123", resume_id: "resume-1" },
+      error: null,
+    });
+    const from = vi.fn((table: string) => {
+      if (table === "resumes") {
+        return existingResumeChain;
+      }
+
+      return applicationsInsertChain;
+    });
+
+    getSupabaseServerClient.mockReturnValue({ from });
+
+    await saveGeneratedApplication({
+      userId: "user-123",
+      rawResumeText: "resume",
+      rawJobText: "job",
+      parsedResume: {
+        name: "",
+        summary: "",
+        skills: [],
+        experienceLevel: "Junior",
+        targetRoles: [],
+        highlights: [],
+        keywords: [],
+      },
+      parsedJob: {
+        title: "Role",
+        responsibilities: [],
+        requirements: [],
+        keywords: [],
+      },
+      fitAnalysis: {
+        fitScore: 0,
+        strengths: [],
+        gaps: [],
+        recommendation: "Skip",
+        reasoning: "",
+      },
+      coverLetterDraft: "cover",
+      emailDraft: "email",
+      status: "draft",
+    });
+
+    expect(existingResumeChain.insert).not.toHaveBeenCalled();
+    expect(applicationsInsertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resume_id: "resume-1",
+      }),
+    );
   });
 
   it("listApplications filters by userId", async () => {

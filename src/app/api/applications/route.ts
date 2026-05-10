@@ -5,12 +5,12 @@ import {
   saveGeneratedApplication
 } from "@/lib/db/queries";
 import { getAuthenticatedSupabaseUser } from "@/lib/db/supabase";
-import { parseProfileText } from "@/lib/engines/profileEngine";
 import { debugLog } from "@/lib/logging";
 import type {
   ApplicationDocs,
   ApplicationStatus,
   FitAnalysis,
+  ParsedProfile,
   ParsedJob
 } from "@/lib/types";
 
@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       uploadedFileName?: string | null;
       jobDescription?: string;
       fitAnalysis?: FitAnalysis;
+      parsedProfile?: ParsedProfile;
       parsedJob?: ParsedJob;
       documents?: ApplicationDocs;
       status?: ApplicationStatus;
@@ -81,23 +82,20 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.parsedJob) {
+    if (!body.parsedProfile || !body.parsedJob) {
       return NextResponse.json(
         { error: "We could not save this application right now. Please try generating it again." },
         { status: 400 }
       );
     }
 
-    const parseStartedAt = Date.now();
-    const parsedResume = await parseProfileText(body.profileText);
-    debugLog("application-save-parse-ms", Date.now() - parseStartedAt);
     const saveStartedAt = Date.now();
     const savedApplication = await saveGeneratedApplication({
       userId: user.id,
       resumeFileName: body.uploadedFileName ?? null,
       rawResumeText: body.profileText,
       rawJobText: body.jobDescription,
-      parsedResume,
+      parsedResume: body.parsedProfile,
       parsedJob: body.parsedJob,
       fitAnalysis: body.fitAnalysis,
       coverLetterDraft: body.documents.coverLetter,

@@ -27,54 +27,53 @@ export async function saveGeneratedApplication(
   }
 
   const supabase = getDatabaseClient();
+  const existingResumeSnapshot = await findMatchingResumeSnapshot(input.userId, input.rawResumeText);
+  let resume = existingResumeSnapshot;
+  let createdResumeSnapshot = false;
 
-  // Resumes are saved first so applications can point at a stable source record.
-  const { data: resume, error: resumeError } = await supabase
-    .from("resumes")
-    .insert({
-      user_id: input.userId,
-      file_name: input.resumeFileName ?? null,
-      raw_resume_text: input.rawResumeText,
-      parsed_resume_json: input.parsedResume,
-      is_default: false
-    })
-    .select("*")
-    .single();
-
-  if (resumeError) {
-    throw new Error(`Failed to insert resume: ${resumeError.message}`);
+  if (!resume) {
+    resume = await createResumeSnapshot(input);
+    createdResumeSnapshot = true;
   }
 
-  const { data: application, error: applicationError } = await supabase
-    .from("applications")
-    .insert({
-      user_id: input.userId,
-      resume_id: resume.id,
-      job_source_type: "manual_text",
-      job_url: null,
-      contact_name: null,
-      contact_email: null,
-      raw_job_text: input.rawJobText,
-      parsed_job_json: input.parsedJob,
-      company_name: input.parsedJob.company ?? null,
-      role_title: input.parsedJob.title,
-      location_text: input.parsedJob.locationText ?? null,
-      fit_summary: input.fitAnalysis.reasoning,
-      fit_score: input.fitAnalysis.fitScore,
-      cover_letter_draft: input.coverLetterDraft,
-      email_draft: input.emailDraft,
-      follow_up_email_draft: null,
-      status: input.status ?? "draft",
-      notes: input.notes ?? null
-    })
-    .select("*")
-    .single();
+  try {
+    const { data: application, error: applicationError } = await supabase
+      .from("applications")
+      .insert({
+        user_id: input.userId,
+        resume_id: resume.id,
+        job_source_type: "manual_text",
+        job_url: null,
+        contact_name: null,
+        contact_email: null,
+        raw_job_text: input.rawJobText,
+        parsed_job_json: input.parsedJob,
+        company_name: input.parsedJob.company ?? null,
+        role_title: input.parsedJob.title,
+        location_text: input.parsedJob.locationText ?? null,
+        fit_summary: input.fitAnalysis.reasoning,
+        fit_score: input.fitAnalysis.fitScore,
+        cover_letter_draft: input.coverLetterDraft,
+        email_draft: input.emailDraft,
+        follow_up_email_draft: null,
+        status: input.status ?? "draft",
+        notes: input.notes ?? null
+      })
+      .select("*")
+      .single();
 
-  if (applicationError) {
-    throw new Error(`Failed to insert application: ${applicationError.message}`);
+    if (applicationError) {
+      throw new Error(`Failed to insert application: ${applicationError.message}`);
+    }
+
+    return application as ApplicationRecord;
+  } catch (error) {
+    if (createdResumeSnapshot && resume?.id) {
+      await cleanupResumeSnapshot(resume.id, input.userId);
+    }
+
+    throw error;
   }
-
-  return application as ApplicationRecord;
 }
 
 export async function saveDefaultResume(
@@ -260,4 +259,66 @@ export async function updateApplicationById(
   }
 
   return data as ApplicationRecord;
+}
+
+async function findMatchingResumeSnapshot(
+  userId: string,
+  rawResumeText: string
+): Promise<ResumeRecord | null> {
+  const supabase = getDatabaseClient();
+  const { data, error } = await supabase
+    .from("resumes")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("raw_resume_text", rawResumeText)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to look up existing resume snapshot: ${error.message}`);
+  }
+
+  return (data as ResumeRecord | null) ?? null;
+}
+
+async function createResumeSnapshot(
+  input: CreateApplicationInput
+): Promise<ResumeRecord> {
+  const supabase = getDatabaseClient();
+  const { data: resume, error: resumeError } = await supabase
+    .from("resumes")
+    .insert({
+      user_id: input.userId,
+      file_name: input.resumeFileName ?? null,
+      raw_resume_text: input.rawResumeText,
+      parsed_resume_json: input.parsedResume,
+      is_default: false
+    })
+    .select("*")
+    .single();
+
+  if (resumeError) {
+    throw new Error(`Failed to insert resume: ${resumeError.message}`);
+  }
+
+  return resume as ResumeRecord;
+}
+
+async function cleanupResumeSnapshot(resumeId: string, userId: string) {
+  const supabase = getDatabaseClient();
+  const { error } = await supabase
+    .from("resumes")
+    .delete()
+    .eq("id", resumeId)
+    .eq("user_id", userId)
+    .eq("is_default", false);
+
+  if (error) {
+    console.error("Failed to clean up orphaned resume snapshot", {
+      resumeId,
+      userId,
+      message: error.message
+    });
+  }
 }

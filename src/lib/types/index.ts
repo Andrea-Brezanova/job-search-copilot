@@ -135,6 +135,7 @@ export interface GeneratedApplicationContent {
 export interface ApplicationPackage {
   documents: ApplicationDocs;
   fitAnalysis: FitAnalysis;
+  parsedProfile: ParsedProfile;
   parsedJob: ParsedJob;
   applicationSummary?: string;
   qualityNotes?: ApplicationQualityNotes;

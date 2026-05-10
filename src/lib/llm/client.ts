@@ -1,4 +1,4 @@
-// This file wraps the OpenAI Responses API for text and structured JSON output.
+// This file wraps the OpenAI Responses API for text output and text-parsed JSON.
 import OpenAI from "openai";
 import { debugJson, debugLog } from "@/lib/logging";
 
@@ -6,10 +6,6 @@ type GenerateStructuredOutputParams = {
   prompt: string;
   input: string;
   outputType?: "text" | "json";
-  jsonSchema?: {
-    name: string;
-    schema: Record<string, unknown>;
-  };
 };
 
 export type StructuredOutputDebug<T> = {
@@ -23,6 +19,9 @@ export type StructuredOutputDebug<T> = {
 const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
 const DEFAULT_OPENAI_TIMEOUT_MS = 30000;
 
+// JSON output is currently requested as plain text and parsed locally. This helper
+// does not enforce a schema with the OpenAI API, so callers should treat JSON mode
+// as "best-effort parsed structured text" rather than guaranteed schema validation.
 export async function generateStructuredOutput<T>({
   prompt,
   input,
