@@ -12,6 +12,28 @@ type AuthPanelProps = {
   variant?: "header" | "card";
 };
 
+function formatAuthErrorMessage(error: unknown, mode: "sign_in" | "sign_up") {
+  const fallback = "We could not complete authentication. Please try again.";
+
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const normalizedMessage = error.message.toLowerCase();
+
+  if (mode === "sign_up") {
+    if (
+      normalizedMessage.includes("password") ||
+      normalizedMessage.includes("weak password") ||
+      normalizedMessage.includes("at least")
+    ) {
+      return "Use a password with at least 6 characters.";
+    }
+  }
+
+  return error.message || fallback;
+}
+
 export function AuthPanel({ variant = "header" }: AuthPanelProps) {
   const { isConfigured, isLoading, user } = useAuth();
   const [email, setEmail] = useState("");
@@ -72,11 +94,7 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
 
       setPassword("");
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "We could not complete authentication. Please try again.",
-      );
+      setErrorMessage(formatAuthErrorMessage(error, mode));
     } finally {
       setIsSubmitting(false);
     }
@@ -204,6 +222,11 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
         placeholder="Password"
         className="w-full rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
       />
+      {mode === "sign_up" ? (
+        <p className="text-xs text-stone-500">
+          Use at least 6 characters.
+        </p>
+      ) : null}
       {mode === "sign_in" ? (
         <label className="flex items-center gap-2 text-sm text-stone-600">
           <input

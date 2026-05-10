@@ -13,16 +13,25 @@ export function buildApplicationActionUpdate(
   now = new Date(),
 ): UpdateApplicationInput {
   switch (action) {
-    case "mark_applied":
+    case "mark_applied": {
+      const appliedAt = application.applied_at ?? now.toISOString();
+      const followUpDate = new Date(appliedAt);
+      followUpDate.setDate(followUpDate.getDate() + 7);
+
       return {
         status: "applied",
-        appliedAt: application.applied_at ?? now.toISOString(),
+        appliedAt,
+        followUpAt: application.follow_up_at ?? followUpDate.toISOString(),
       };
+    }
     case "set_follow_up": {
+      const appliedAt = application.applied_at ?? now.toISOString();
       const followUpDate = new Date(now);
       followUpDate.setDate(followUpDate.getDate() + 7);
 
       return {
+        status: application.status === "draft" ? "applied" : application.status,
+        appliedAt,
         followUpAt: application.follow_up_at ?? followUpDate.toISOString(),
       };
     }
@@ -39,7 +48,5 @@ export function buildApplicationActionUpdate(
         status: "archived",
         archivedAt: application.archived_at ?? now.toISOString(),
       };
-    default:
-      return {};
   }
 }

@@ -8,6 +8,14 @@ import {
 import { getAuthenticatedSupabaseUser } from "@/lib/db/supabase";
 import type { ApplicationUpdateAction } from "@/lib/types";
 
+const validApplicationActions = new Set<ApplicationUpdateAction>([
+  "mark_applied",
+  "set_follow_up",
+  "move_to_interview",
+  "mark_rejected",
+  "archive",
+]);
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown server error.";
 }
@@ -66,7 +74,7 @@ export async function PUT(
 
     const { id } = await context.params;
     const body = (await request.json()) as {
-      action?: ApplicationUpdateAction;
+      action?: string;
       coverLetterDraft?: string;
       emailDraft?: string;
       followUpEmailDraft?: string | null;
@@ -85,8 +93,15 @@ export async function PUT(
       );
     }
 
+    if (body.action && !validApplicationActions.has(body.action as ApplicationUpdateAction)) {
+      return NextResponse.json(
+        { error: "Invalid application action." },
+        { status: 400 }
+      );
+    }
+
     const actionUpdates = body.action
-      ? buildApplicationActionUpdate(body.action, application)
+      ? buildApplicationActionUpdate(body.action as ApplicationUpdateAction, application)
       : {};
 
     const updatedApplication = await updateApplicationById(id, user.id, {
