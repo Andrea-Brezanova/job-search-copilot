@@ -1,18 +1,22 @@
-// This file coordinates the homepage UI and API calls for the MVP flow.
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
+import { FirstSaveSuccess } from "@/components/FirstSaveSuccess";
+import { GenerationProgressIndicator } from "@/components/GenerationProgressIndicator";
+import { OnboardingPrompt } from "@/components/OnboardingPrompt";
 import { useAuth } from "@/components/AuthProvider";
 import { FitResult } from "@/components/FitResult";
 import { JobForm } from "@/components/JobForm";
 import { ResumeForm } from "@/components/ResumeForm";
+import { useApplicationGeneration } from "@/hooks/useApplicationGeneration";
+import { useDefaultResume } from "@/hooks/useDefaultResume";
+import { useFirstTimeUser } from "@/hooks/useFirstTimeUser";
+import { useResumeUpload } from "@/hooks/useResumeUpload";
 import type {
   ApplicationDocs as ApplicationDocsType,
-  ApplicationPackage,
-  ApplicationStatus,
   FitAnalysis,
 } from "@/lib/types";
 
@@ -20,457 +24,39 @@ export function Workspace() {
   const isDev = process.env.NODE_ENV !== "production";
   const router = useRouter();
   const { session } = useAuth();
-  const profileTextRef = useRef("");
+  const accessToken = session?.access_token ?? "";
+  const userId = session?.user.id ?? null;
+  const isLoggedIn = Boolean(session?.user);
   const jobDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
-  const generationStages = [
-    "Reading your resume...",
-    "Reading the job description...",
-    "Extracting key skills and responsibilities...",
-    "Matching your background to the role...",
-    "Drafting your cover letter and email...",
-    "Still drafting your application package..."
-  ];
-  const [profileText, setProfileText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
-  const [uploadedResumeFile, setUploadedResumeFile] = useState<File | null>(
-    null,
-  );
-  const [uploadedFileName, setUploadedFileName] = useState("");
-  const [uploadNote, setUploadNote] = useState("");
-  const [uploadError, setUploadError] = useState("");
-  const [uploadSuccess, setUploadSuccess] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [applicationPackage, setApplicationPackage] =
-    useState<ApplicationPackage | null>(null);
-  const [status] = useState<ApplicationStatus>("draft");
-  const [notes, setNotes] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStageIndex, setGenerationStageIndex] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
-  const [savedApplicationId, setSavedApplicationId] = useState<string | null>(
-    null,
-  );
+  const [savedApplicationId, setSavedApplicationId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
-  const [isDefaultResumeLoading, setIsDefaultResumeLoading] = useState(false);
-  const [isSavingDefaultResume, setIsSavingDefaultResume] = useState(false);
-  const [defaultResumeMessage, setDefaultResumeMessage] = useState("");
-  const [defaultResumeError, setDefaultResumeError] = useState("");
-  const [isUsingSavedResume, setIsUsingSavedResume] = useState(false);
-  const [loadedDefaultResumeForUserId, setLoadedDefaultResumeForUserId] =
-    useState<string | null>(null);
-  const [applicationsCount, setApplicationsCount] = useState(0);
-  const [hasDefaultResume, setHasDefaultResume] = useState(false);
-  const [hasGeneratedFirstPackage, setHasGeneratedFirstPackage] = useState(false);
-  const [hasSavedFirstApplication, setHasSavedFirstApplication] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    profileTextRef.current = profileText;
-  }, [profileText]);
+  const generation = useApplicationGeneration();
+  const firstTimeUser = useFirstTimeUser({
+    isLoggedIn,
+    accessToken,
+    userId,
+  });
+  const resumeUpload = useResumeUpload({
+    onResumeChanged: () => {
+      generation.resetGeneratedPackage();
+      firstTimeUser.resetFirstSaveState();
+      setSavedApplicationId(null);
+      setSaveMessage("");
+    },
+  });
+  const defaultResume = useDefaultResume({
+    userId,
+    accessToken,
+    currentProfileText: resumeUpload.profileText,
+    setProfileText: resumeUpload.setProfileTextDirectly,
+  });
 
-  useEffect(() => {
-    if (!isGenerating) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      setGenerationStageIndex((currentIndex) =>
-        Math.min(currentIndex + 1, generationStages.length - 1)
-      );
-    }, 1600);
-
-    return () => window.clearInterval(intervalId);
-  }, [generationStages.length, isGenerating]);
-
-  useEffect(() => {
-    const userId = session?.user.id ?? null;
-    const accessToken = session?.access_token ?? "";
-    let isActive = true;
-
-    async function syncDefaultResume() {
-      if (!userId || !accessToken) {
-        if (!isActive) {
-          return;
-        }
-
-        setLoadedDefaultResumeForUserId(null);
-        setIsUsingSavedResume(false);
-        setIsDefaultResumeLoading(false);
-        setDefaultResumeError("");
-        setDefaultResumeMessage("");
-        setApplicationsCount(0);
-        setHasDefaultResume(false);
-        setHasGeneratedFirstPackage(false);
-        setHasSavedFirstApplication(false);
-        return;
-      }
-
-      if (loadedDefaultResumeForUserId === userId) {
-        return;
-      }
-
-      setIsDefaultResumeLoading(true);
-      setDefaultResumeError("");
-
-      try {
-        const [resumeResponse, applicationsResponse] = await Promise.all([
-          fetch("/api/resume-default", {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }),
-          fetch("/api/applications", {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }),
-        ]);
-
-        const resumeData = (await resumeResponse.json()) as {
-          error?: string;
-          resume?: { raw_resume_text?: string | null } | null;
-        };
-        const applicationsData = (await applicationsResponse.json()) as
-          | { error?: string }
-          | Array<{ id: string }>;
-
-        if (!resumeResponse.ok) {
-          throw new Error(resumeData.error ?? "Unable to load the saved resume.");
-        }
-
-        if (!applicationsResponse.ok) {
-          const errorMessage =
-            !Array.isArray(applicationsData) && applicationsData.error
-              ? applicationsData.error
-              : "Unable to load saved applications.";
-          throw new Error(errorMessage);
-        }
-
-        const savedResumeText = resumeData.resume?.raw_resume_text?.trim() ?? "";
-        const nextApplicationsCount = Array.isArray(applicationsData)
-          ? applicationsData.length
-          : 0;
-
-        if (savedResumeText && !profileTextRef.current.trim() && isActive) {
-          setProfileText(savedResumeText);
-          profileTextRef.current = savedResumeText;
-          setIsUsingSavedResume(true);
-          setDefaultResumeMessage("Using saved resume.");
-        }
-
-        if (isActive) {
-          setApplicationsCount(nextApplicationsCount);
-          setHasDefaultResume(Boolean(savedResumeText));
-          setHasGeneratedFirstPackage(false);
-          setHasSavedFirstApplication(false);
-        }
-      } catch (error) {
-        if (isActive) {
-          setDefaultResumeError(
-            error instanceof Error
-              ? error.message
-              : "Unable to load the saved resume.",
-          );
-        }
-      } finally {
-        if (isActive) {
-          setIsDefaultResumeLoading(false);
-          setLoadedDefaultResumeForUserId(userId);
-        }
-      }
-    }
-
-    void syncDefaultResume();
-
-    return () => {
-      isActive = false;
-    };
-  }, [loadedDefaultResumeForUserId, session?.access_token, session?.user.id]);
-
-  async function handleResumeFileChange(file: File | null) {
-    // Clear old upload messages each time the user chooses a new file.
-    setUploadError("");
-    setUploadNote("");
-    setUploadSuccess("");
-    setUploadedResumeFile(null);
-    setUploadedFileName("");
-
-    if (!file) {
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadedFileName(file.name);
-
-    try {
-      const extension = file.name.split(".").pop()?.toLowerCase();
-
-      if (!extension || !["txt", "pdf", "doc", "docx"].includes(extension)) {
-        throw new Error("Please upload a .txt, .pdf, .doc, or .docx file.");
-      }
-
-      // We keep the selected file in state so the page knows a resume file exists,
-      // even if that file has not been turned into usable text yet.
-      setUploadedResumeFile(file);
-
-      if (extension === "txt") {
-        // Text files can be read directly in the browser, so we use them to fill the textarea.
-        const textContent = await file.text();
-        handleProfileTextChange(textContent);
-        setUploadSuccess(
-          "Text file loaded successfully. Resume text added to the form.",
-        );
-        return;
-      }
-
-      if (extension === "pdf") {
-        // PDFs are sent to the backend because the browser should not handle PDF text extraction itself.
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const response = await fetch("/api/parse-resume", {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = (await response.json()) as {
-          extractedText?: string;
-          message?: string;
-          error?: string;
-        };
-
-        if (!response.ok || !data.extractedText) {
-          throw new Error(data.error ?? "Unable to parse the uploaded PDF.");
-        }
-
-        handleProfileTextChange(data.extractedText);
-        setUploadSuccess(
-          data.message ??
-            "PDF parsed successfully. Resume text added to the form.",
-        );
-        return;
-      }
-
-      // DOC and DOCX files are still stored locally until that parser is added.
-      setUploadNote("File uploaded. PDF/DOCX parsing is the next step.");
-    } catch (error) {
-      setUploadError(
-        error instanceof Error
-          ? error.message
-          : "Unable to process the uploaded file.",
-      );
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
-  function handleProfileTextChange(value: string) {
-    setProfileText(value);
-    setApplicationPackage(null);
-    setSavedApplicationId(null);
-    setSaveMessage("");
-    setIsUsingSavedResume(false);
-    setDefaultResumeMessage("");
-    setHasSavedFirstApplication(false);
-  }
-
-  function handleJobDescriptionChange(value: string) {
-    setJobDescription(value);
-    setApplicationPackage(null);
-    setSavedApplicationId(null);
-    setSaveMessage("");
-    setHasSavedFirstApplication(false);
-  }
-
-  function handleDocumentsChange(
-    field: keyof ApplicationDocsType,
-    value: string,
-  ) {
-    setApplicationPackage((currentPackage) => {
-      if (!currentPackage) {
-        return currentPackage;
-      }
-
-      return {
-        ...currentPackage,
-        documents: {
-          ...currentPackage.documents,
-          [field]: value,
-        },
-      };
-    });
-  }
-
-  async function generateApplicationPackage() {
-    setStatusMessage("");
-    setSaveMessage("");
-    setSavedApplicationId(null);
-    setHasSavedFirstApplication(false);
-
-    if (!canSubmitWithCurrentResumeInput()) {
-      setStatusMessage(
-        "Please upload a resume / CV before generating your application package.",
-      );
-      return;
-    }
-
-    setIsGenerating(true);
-    setGenerationStageIndex(0);
-
-    try {
-      const response = await fetch("/api/generate-application-package", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ profileText, jobDescription }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ?? "We could not generate the application package. Please try again.",
-        );
-      }
-
-      setApplicationPackage(data as ApplicationPackage);
-      setHasGeneratedFirstPackage(true);
-      setSaveMessage(
-        "Application package generated. Review the drafts, then save your application.",
-      );
-    } catch (error) {
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred.",
-      );
-    } finally {
-      setIsGenerating(false);
-      setGenerationStageIndex(0);
-    }
-  }
-
-  async function saveApplication() {
-    setStatusMessage("");
-    setSaveMessage("");
-
-    if (!applicationPackage) {
-      setStatusMessage("Generate an application package before saving.");
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      const isFirstSaveForUser = applicationsCount === 0;
-      const accessToken = session?.access_token ?? "";
-
-      if (!accessToken) {
-        throw new Error("Please log in to save your application.");
-      }
-
-      const response = await fetch("/api/applications", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          profileText,
-          uploadedFileName,
-          jobDescription,
-          fitAnalysis: applicationPackage.fitAnalysis,
-          parsedJob: applicationPackage.parsedJob,
-          documents: applicationPackage.documents,
-          status,
-          notes,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Failed to save the application.");
-      }
-
-      setSavedApplicationId((data as { id: string }).id);
-      setApplicationsCount((currentCount) => Math.max(1, currentCount + 1));
-      setSaveMessage(
-        isFirstSaveForUser
-          ? "Saved. You can now track this application."
-          : "Application saved to Supabase.",
-      );
-      setHasSavedFirstApplication(isFirstSaveForUser);
-
-      if (!isFirstSaveForUser) {
-        router.push("/applications");
-      }
-    } catch (error) {
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred.",
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function saveDefaultResume() {
-    setDefaultResumeError("");
-    setDefaultResumeMessage("");
-
-    if (!profileText.trim()) {
-      setDefaultResumeError("Please add your resume / CV before saving it.");
-      return;
-    }
-
-    const accessToken = session?.access_token ?? "";
-
-    if (!accessToken) {
-      setDefaultResumeError("Please log in to save your default resume.");
-      return;
-    }
-
-    setIsSavingDefaultResume(true);
-
-    try {
-      const response = await fetch("/api/resume-default", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          profileText,
-          uploadedFileName: uploadedFileName || null,
-        }),
-      });
-
-      const data = (await response.json()) as { error?: string };
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Unable to save the default resume.");
-      }
-
-      setIsUsingSavedResume(true);
-      setHasDefaultResume(true);
-      setDefaultResumeMessage("Saved as your default resume.");
-    } catch (error) {
-      setDefaultResumeError(
-        error instanceof Error
-          ? error.message
-          : "Unable to save the default resume.",
-      );
-    } finally {
-      setIsSavingDefaultResume(false);
-    }
-  }
-
-  // These booleans make the form rules easier to read and maintain.
-  const hasResumeText = profileText.trim().length > 0;
-  const hasResumeFile = uploadedResumeFile !== null;
+  const applicationPackage = generation.applicationPackage;
+  const hasResumeText = resumeUpload.profileText.trim().length > 0;
+  const hasResumeFile = resumeUpload.uploadedResumeFile !== null;
   const hasJobText = jobDescription.trim().length > 0;
   const hasUsableResumeInput = hasResumeText || hasResumeFile;
   const isDisabled = !hasJobText || !hasUsableResumeInput;
@@ -485,18 +71,14 @@ export function Workspace() {
     applicationPackage?.parsedJob.title,
     applicationPackage?.parsedJob.company,
   );
-  const isLoggedIn = Boolean(session?.user);
-  const isFirstTimeUser = isLoggedIn && applicationsCount === 0;
-  const shouldShowOnboarding = isFirstTimeUser;
+  const shouldShowOnboarding = firstTimeUser.shouldShowOnboarding;
   const shouldShowFirstSavePrompt =
-    isFirstTimeUser &&
-    hasGeneratedFirstPackage &&
+    shouldShowOnboarding &&
+    firstTimeUser.hasGeneratedFirstPackage &&
     Boolean(applicationPackage) &&
-    !hasSavedFirstApplication;
+    !firstTimeUser.hasSavedFirstApplication;
 
   function canSubmitWithCurrentResumeInput() {
-    // The backend endpoints still need extracted resume text, so generation stays blocked
-    // until the uploaded file has been parsed successfully.
     return hasJobText && hasResumeText;
   }
 
@@ -512,85 +94,162 @@ export function Workspace() {
     return () => window.clearTimeout(timeoutId);
   }, [hasJobText, hasResumeText, shouldShowOnboarding]);
 
+  function handleProfileTextChange(value: string) {
+    resumeUpload.handleProfileTextChange(value);
+    defaultResume.clearUsageState();
+  }
+
+  async function handleResumeFileChange(file: File | null) {
+    defaultResume.clearUsageState();
+    await resumeUpload.handleFileUpload(file);
+  }
+
+  function handleJobDescriptionChange(value: string) {
+    setJobDescription(value);
+    generation.resetGeneratedPackage();
+    firstTimeUser.resetFirstSaveState();
+    setSavedApplicationId(null);
+    setSaveMessage("");
+  }
+
+  async function generateApplicationPackage() {
+    generation.clearStatusMessage();
+    setSaveMessage("");
+    setSavedApplicationId(null);
+    firstTimeUser.resetFirstSaveState();
+
+    if (!canSubmitWithCurrentResumeInput()) {
+      generation.setStatusMessage(
+        "Please upload a resume / CV before generating your application package.",
+      );
+      return;
+    }
+
+    await generation.handleGenerateClick(
+      resumeUpload.profileText,
+      jobDescription,
+      () => {
+        firstTimeUser.markFirstGenerated();
+        setSaveMessage(
+          "Application package generated. Review the drafts, then save your application.",
+        );
+      },
+    );
+  }
+
+  async function saveApplication() {
+    generation.clearStatusMessage();
+    setSaveMessage("");
+
+    if (!applicationPackage) {
+      generation.setStatusMessage("Generate an application package before saving.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const isFirstSaveForUser = firstTimeUser.applicationsCount === 0;
+
+      if (!accessToken) {
+        throw new Error("Please log in to save your application.");
+      }
+
+      const response = await fetch("/api/applications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          profileText: resumeUpload.profileText,
+          uploadedFileName: resumeUpload.uploadedFileName,
+          jobDescription,
+          fitAnalysis: applicationPackage.fitAnalysis,
+          parsedProfile: applicationPackage.parsedProfile,
+          parsedJob: applicationPackage.parsedJob,
+          documents: applicationPackage.documents,
+          status: generation.status,
+          notes: generation.notes,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to save the application.");
+      }
+
+      setSavedApplicationId((data as { id: string }).id);
+      setSaveMessage(
+        isFirstSaveForUser
+          ? "Saved. You can now track this application."
+          : "Application saved to Supabase.",
+      );
+      firstTimeUser.markFirstSaved(isFirstSaveForUser);
+
+      if (!isFirstSaveForUser) {
+        router.push("/applications");
+      }
+    } catch (error) {
+      generation.setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">
       <div className="mx-auto max-w-6xl px-6 py-12">
-        {shouldShowOnboarding ? (
-          <section className="mb-8 rounded-3xl border border-brand-300 bg-[linear-gradient(180deg,rgba(222,238,228,1),rgba(249,250,249,1))] p-6 shadow-lg ring-1 ring-brand-100">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
-                  Onboarding
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-stone-900">
-                  Create your first application package
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-stone-600">
-                  Add your resume, paste a job description, and generate your first application package. Once it looks good, save it to start tracking your applications.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={generateApplicationPackage}
-                disabled={!canSubmitWithCurrentResumeInput() || isGenerating}
-                className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
-              >
-                {isGenerating ? "Generating..." : "Generate your first application"}
-              </button>
-            </div>
-
-            {isDev ? (
-              <div className="mt-4 rounded-xl border border-dashed border-stone-300 bg-white/70 px-4 py-3 text-xs text-stone-600">
-                <p><span className="font-semibold">isLoggedIn:</span> {String(isLoggedIn)}</p>
-                <p><span className="font-semibold">applicationsCount:</span> {applicationsCount}</p>
-                <p><span className="font-semibold">hasDefaultResume:</span> {String(hasDefaultResume)}</p>
-                <p><span className="font-semibold">shouldShowOnboarding:</span> {String(shouldShowOnboarding)}</p>
-              </div>
-            ) : null}
-
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <OnboardingChecklistItem
-                step="Step 1"
-                title="Add your resume"
-                completed={hasResumeText}
-              />
-              <OnboardingChecklistItem
-                step="Step 2"
-                title="Paste a job description"
-                completed={hasJobText}
-              />
-              <OnboardingChecklistItem
-                step="Step 3"
-                title="Generate your first application"
-                completed={hasGeneratedFirstPackage}
-              />
-            </div>
-
-            {hasGeneratedFirstPackage ? (
-              <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                Your first application is ready. Save it to track it.
-              </p>
-            ) : null}
-          </section>
-        ) : null}
+        <OnboardingPrompt
+          isVisible={shouldShowOnboarding}
+          canGenerate={canSubmitWithCurrentResumeInput() && !generation.isGenerating}
+          isGenerating={generation.isGenerating}
+          hasGeneratedFirstPackage={firstTimeUser.hasGeneratedFirstPackage}
+          completedSteps={{
+            resume: hasResumeText,
+            jobDescription: hasJobText,
+            generation: firstTimeUser.hasGeneratedFirstPackage,
+          }}
+          onGenerate={() => void generateApplicationPackage()}
+          debugData={
+            isDev
+              ? {
+                  isLoggedIn,
+                  applicationsCount: firstTimeUser.applicationsCount,
+                  hasDefaultResume: defaultResume.hasDefaultResume,
+                  shouldShowOnboarding,
+                }
+              : undefined
+          }
+        />
 
         <section className="grid gap-6 lg:grid-cols-2">
           <ResumeForm
             onChange={handleProfileTextChange}
-            onFileChange={handleResumeFileChange}
-            isUploading={isUploading}
-            uploadError={uploadError}
-            uploadSuccess={uploadSuccess}
-            uploadedFileName={uploadedFileName}
-            uploadNote={uploadNote}
-            isDefaultResumeLoading={isDefaultResumeLoading}
-            isSavingDefaultResume={isSavingDefaultResume}
-            defaultResumeMessage={defaultResumeMessage}
-            defaultResumeError={defaultResumeError}
-            isUsingSavedResume={isUsingSavedResume}
+            onFileChange={(file) => void handleResumeFileChange(file)}
+            isUploading={resumeUpload.isUploading}
+            uploadError={resumeUpload.uploadError}
+            uploadSuccess={resumeUpload.uploadSuccess}
+            uploadedFileName={resumeUpload.uploadedFileName}
+            uploadNote={resumeUpload.uploadNote}
+            isDefaultResumeLoading={defaultResume.isLoading}
+            isSavingDefaultResume={defaultResume.isSaving}
+            defaultResumeMessage={defaultResume.defaultResumeMessage}
+            defaultResumeError={defaultResume.defaultResumeError}
+            isUsingSavedResume={defaultResume.isUsingSavedResume}
             showDefaultResumeActions={Boolean(session?.user)}
-            canSaveDefaultResume={Boolean(profileText.trim())}
-            onSaveDefaultResume={saveDefaultResume}
+            canSaveDefaultResume={Boolean(resumeUpload.profileText.trim())}
+            onSaveDefaultResume={() =>
+              void defaultResume.saveDefault(
+                resumeUpload.profileText,
+                resumeUpload.uploadedFileName || null,
+              )
+            }
           />
           <JobForm
             value={jobDescription}
@@ -602,72 +261,34 @@ export function Workspace() {
         <section className="mt-6 flex flex-col items-center">
           <button
             type="button"
-            onClick={generateApplicationPackage}
-            disabled={isDisabled || isGenerating}
+            onClick={() => void generateApplicationPackage()}
+            disabled={isDisabled || generation.isGenerating}
             className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
           >
-            {isGenerating ? "Generating..." : "Generate application package"}
+            {generation.isGenerating ? "Generating..." : "Generate application package"}
           </button>
 
-          {isGenerating ? (
-            <p className="mt-3 text-center text-sm text-stone-600">
-              {generationStages[generationStageIndex]}
-            </p>
-          ) : null}
+          <GenerationProgressIndicator
+            isGenerating={generation.isGenerating}
+            stageText={generation.generationStages[generation.generationStageIndex]}
+          />
         </section>
 
-        {statusMessage ? (
+        {generation.statusMessage ? (
           <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {statusMessage}
+            {generation.statusMessage}
           </p>
         ) : null}
 
         {applicationPackage ? (
           <section className="mt-8 grid gap-6">
-            {shouldShowFirstSavePrompt ? (
-              <section className="rounded-2xl border border-brand-300 bg-brand-50 p-6 shadow-sm">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-stone-900">
-                      Your application is ready.
-                    </h2>
-                    <p className="mt-2 text-sm leading-6 text-stone-600">
-                      Save this application now so you can track it, add follow-ups, and return to it later from your Applications view.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={saveApplication}
-                    disabled={isSaving}
-                    className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
-                  >
-                    {isSaving ? "Saving..." : "Save this application"}
-                  </button>
-                </div>
-              </section>
-            ) : null}
-
-            {hasSavedFirstApplication ? (
-              <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-emerald-900">
-                      Saved. You can now track this application.
-                    </h2>
-                    <p className="mt-2 text-sm leading-6 text-emerald-800">
-                      Your first saved application is now available in the tracker, where you can update status, generate follow-ups, and keep notes.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/applications")}
-                    className="rounded-xl border border-emerald-300 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100"
-                  >
-                    View in Applications
-                  </button>
-                </div>
-              </section>
-            ) : null}
+            <FirstSaveSuccess
+              showSavePrompt={shouldShowFirstSavePrompt}
+              hasSavedFirstApplication={firstTimeUser.hasSavedFirstApplication}
+              isSaving={isSaving}
+              onSave={() => void saveApplication()}
+              onViewApplications={() => router.push("/applications")}
+            />
 
             <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -688,15 +309,15 @@ export function Workspace() {
                   exportFileBaseName={exportFileBaseName}
                   applicationEmailGmailSubject={applicationEmailGmailSubject}
                   applicationEmailGmailTo=""
-                  onChange={handleDocumentsChange}
+                  onChange={generation.handleDocumentsChange}
                 />
               </div>
             </section>
 
             <ApplicationSavePanel
-              status={status}
-              notes={notes}
-              onNotesChange={setNotes}
+              status={generation.status}
+              notes={generation.notes}
+              onNotesChange={generation.handleNotesChange}
               onSave={saveApplication}
               isSaving={isSaving}
               isDisabled={!applicationPackage}
@@ -716,41 +337,6 @@ export function Workspace() {
         ) : null}
       </div>
     </main>
-  );
-}
-
-function OnboardingChecklistItem({
-  step,
-  title,
-  completed,
-}: {
-  step: string;
-  title: string;
-  completed: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
-      <div className="flex items-start gap-3">
-        <div
-          className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-            completed
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-stone-100 text-stone-500"
-          }`}
-        >
-          {completed ? "✓" : step.replace("Step ", "")}
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-            {step}
-          </p>
-          <p className="mt-1 text-sm font-medium text-stone-900">{title}</p>
-          <p className="mt-1 text-sm text-stone-600">
-            {completed ? "Completed" : "Not completed yet"}
-          </p>
-        </div>
-      </div>
-    </div>
   );
 }
 
