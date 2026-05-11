@@ -62,6 +62,16 @@ const RESPONSIBILITY_SECTION_PATTERN =
   /^(key responsibilities|responsibilities|what you'll do|what you will do)\s*:?\s*$/i;
 const SECTION_HEADING_PATTERN =
   /^(key responsibilities|responsibilities|what you'll do|what you will do|required qualifications|preferred qualifications|education|about the job|about the role|employment type|work location)\s*:?\s*$/i;
+const ROLE_KEYWORD_PATTERN =
+  /\b(developer|engineer|analyst|designer|manager|specialist|intern|consultant|assistant|associate|operator|coordinator|administrator)\b/i;
+const TITLE_SHAPE_KEYWORD_PATTERN =
+  /\b(developer|engineer|analyst|designer|manager|specialist|intern|consultant|assistant|associate|operator|coordinator|administrator|scientist|architect|lead|principal|director|researcher|softwareentwickler|entwickler)\b/i;
+const ACTION_LINE_PATTERN =
+  /^(save|apply|easy apply|show more|show less|retry premium|message|share|follow|connect)$/i;
+const TITLE_SECTION_PATTERN =
+  /^(about the job|about the role|requirements|benefits|tasks|responsibilities|key responsibilities|what you'll do|what you will do|employment type|work location)$/i;
+const TITLE_PROSE_PATTERN =
+  /\b(you will|you'll|we are|we're|you need to|responsible for|responsibilities include|experience in|must have|should have|our client|the role|quality here|you start|your goal)\b/i;
 
 type ScoreBreakdown = {
   fitScore: number;
@@ -95,9 +105,13 @@ export function analyzeParsedJobFit(
 }
 
 export function parseJobText(jobDescription: string): ParsedJob {
+  const rawLines = jobDescription
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
   const lines = cleanJobLines(jobDescription);
-  const title = extractRoleTitle(lines);
-  const company = extractCompanyName(lines, jobDescription);
+  const title = extractRoleTitle(rawLines);
+  const company = extractCompanyName(lines, rawLines, jobDescription, title);
   const responsibilities = extractResponsibilities(lines);
   const normalizedKeywords = extractNormalizedKeywords(
     [title, ...responsibilities, ...lines].join("\n")
@@ -124,42 +138,164 @@ function cleanJobLines(jobDescription: string) {
     .filter((line) => !/^\d+\s+of\s+\d+\s+skills\s+match$/i.test(line))
     .filter((line) => !/^retry premium|message$|save$|easy apply$/i.test(line))
     .filter((line) => !/^description:?$/i.test(line))
-    .filter((line) => !/^about the job$/i.test(line));
+    .filter((line) => !/^about the job$/i.test(line))
+    .filter((line) => !/^company logo for[,.:]?\s*/i.test(line))
+    .filter((line) => !/^responses managed off linkedin$/i.test(line))
+    .filter((line) => !/^people you can reach out to$/i.test(line))
+    .filter((line) => !/^meet the hiring team$/i.test(line));
 }
 
 function extractRoleTitle(lines: string[]) {
-  const candidate =
-    lines.find(
-      (line) =>
-        /(developer|engineer|analyst|designer|manager|specialist|intern|consultant|assistant|coordinator|administrator)/i.test(
-          line
-        ) && !/team|hiring/i.test(line)
-    ) ?? "this role";
+  const normalizedLines = lines.map((line) => normalizeRoleTitleCandidate(line));
+  const scoredCandidates = lines
+    .map((line, index) => ({
+      original: line,
+      normalized: normalizedLines[index],
+      score: scoreRoleTitleCandidate(line, index, normalizedLines),
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score);
 
-  const cleaned = candidate
-    .replace(/\s*[-|].*$/, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  const bestCandidate = scoredCandidates[0]?.normalized ?? "";
 
-  return cleaned.split(/\s+/).length > 6 || JOB_METADATA_PATTERN.test(cleaned)
-    ? "this role"
-    : cleaned;
+  return isAcceptableRoleTitle(bestCandidate) ? bestCandidate : "this role";
 }
 
-function extractCompanyName(lines: string[], rawText: string) {
+function normalizeRoleTitleCandidate(line: string) {
+  return line
+    .replace(/^save\s+/i, "")
+    .replace(/\s*[·|]\s*.*$/, "")
+    .replace(/\s*-\s*(remote|hybrid|on-site|onsite|united states|usa|us|uk|canada|germany|france|spain|italy|australia|new zealand)\b.*$/i, "")
+    .replace(/\s*,\s*(remote|hybrid|on-site|onsite|united states|usa|us|uk|canada|germany|france|spain|italy|australia|new zealand)\b.*$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function scoreRoleTitleCandidate(
+  line: string,
+  index: number,
+  normalizedLines: string[]
+) {
+  const normalized = normalizeRoleTitleCandidate(line);
+
+  if (!isAcceptableRoleTitle(normalized) || looksLikeTitleNoise(line, normalized)) {
+    return 0;
+  }
+
+  let score = 0;
+
+  if (index === 0) {
+    score += 8;
+  } else if (index <= 2) {
+    score += 6;
+  } else if (index <= 6) {
+    score += 3;
+  }
+
+  const repeatCount = normalizedLines.filter((candidate) => candidate === normalized).length;
+  if (repeatCount > 1) {
+    score += 5;
+  }
+
+  if (ROLE_KEYWORD_PATTERN.test(normalized)) {
+    score += 4;
+  }
+
+  if (TITLE_SHAPE_KEYWORD_PATTERN.test(normalized)) {
+    score += 3;
+  }
+
+  if (/\((?:m\/w\/d|f\/m\/d|m\/f\/d)\)/i.test(normalized)) {
+    score += 2;
+  }
+
+  if (/[/]/.test(normalized) || /\b[A-Z][a-z]+, [A-Z]/.test(normalized)) {
+    score += 1;
+  }
+
+  if (/^[A-ZÄÖÜ][^\n]+$/.test(normalized)) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function isAcceptableRoleTitle(normalized: string) {
+  return (
+    Boolean(normalized) &&
+    normalized.split(/\s+/).length <= 10 &&
+    !JOB_METADATA_PATTERN.test(normalized)
+  );
+}
+
+function looksLikeTitleNoise(line: string, normalized: string) {
+  return (
+    !normalized ||
+    /team|hiring/i.test(normalized) ||
+    TITLE_SECTION_PATTERN.test(normalized) ||
+    ACTION_LINE_PATTERN.test(normalized) ||
+    TITLE_PROSE_PATTERN.test(normalized) ||
+    /^[•*-]\s*/.test(line) ||
+    /[.:]$/.test(normalized) ||
+    looksLikeLocationOnlyLine(normalized) ||
+    looksLikeSalaryOrMetadataLine(normalized)
+  );
+}
+
+function looksLikeLocationOnlyLine(line: string) {
+  return (
+    /^([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.'-]+,\s*){1,4}[A-ZÄÖÜ][A-Za-zÄÖÜäöüß.'-]+$/.test(line) ||
+    /\b(remote|hybrid|on-site|onsite)\b/i.test(line)
+  );
+}
+
+function looksLikeSalaryOrMetadataLine(line: string) {
+  return (
+    /(?:€|\$|eur|usd|per year|yr|\/yr|full-time|part-time|contract)/i.test(line) ||
+    /\b\d+\s+(week|day|month|year)s?\s+ago\b/i.test(line)
+  );
+}
+
+function extractCompanyName(
+  lines: string[],
+  rawLines: string[],
+  rawText: string,
+  title?: string
+) {
   const savedPatternMatch = rawText.match(/Save .+? at ([^\n]+)/i);
   const savedCompany = normalizeCompanyCandidate(savedPatternMatch?.[1]);
   if (savedCompany && !JOB_METADATA_PATTERN.test(savedCompany)) {
     return savedCompany;
   }
 
-  const titleIndex = lines.findIndex((line) =>
-    /(developer|engineer|analyst|designer|manager|specialist|intern|consultant)/i.test(
-      line
-    )
-  );
+  const normalizedTitle = title && title !== "this role" ? normalizeRoleTitleCandidate(title) : undefined;
+  const titleIndex = normalizedTitle
+    ? rawLines.findIndex((line) => normalizeRoleTitleCandidate(line) === normalizedTitle)
+    : -1;
+  const nearbyRawCompanyCandidate =
+    titleIndex >= 0
+      ? rawLines
+          .slice(Math.max(0, titleIndex - 2), titleIndex + 3)
+          .filter((line) => normalizeRoleTitleCandidate(line) !== normalizedTitle)
+          .map(normalizeCompanyCandidate)
+          .find((line) => isCompanyCandidate(line))
+      : undefined;
+
+  if (nearbyRawCompanyCandidate) {
+    return nearbyRawCompanyCandidate;
+  }
+
+  const cleanedTitleIndex = normalizedTitle
+    ? lines.findIndex((line) => normalizeRoleTitleCandidate(line) === normalizedTitle)
+    : -1;
   const companyCandidate =
-    titleIndex >= 0 ? lines.slice(titleIndex + 1, titleIndex + 4).map(normalizeCompanyCandidate).find(isCompanyCandidate) : undefined;
+    cleanedTitleIndex >= 0
+      ? lines
+          .slice(Math.max(0, cleanedTitleIndex - 1), cleanedTitleIndex + 4)
+          .filter((line) => normalizeRoleTitleCandidate(line) !== normalizedTitle)
+          .map(normalizeCompanyCandidate)
+          .find(isCompanyCandidate)
+      : undefined;
 
   return companyCandidate;
 }
@@ -170,9 +306,11 @@ function normalizeCompanyCandidate(line?: string) {
   }
 
   return line
+    .replace(/^company logo for[,.:]?\s*/i, "")
     .replace(/^about\s+/i, "")
     .replace(/^company[:\s-]*/i, "")
     .replace(/\s*\|\s*.*$/, "")
+    .replace(/\s*[•·]\s*.*$/, "")
     .replace(/\s*[·-]\s*(reposted|promoted|actively reviewing).*/i, "")
     .trim();
 }
@@ -187,7 +325,16 @@ function isCompanyCandidate(line?: string) {
     line.length < 80 &&
     !JOB_METADATA_PATTERN.test(line) &&
     !RESPONSIBILITY_NOISE_PATTERN.test(line) &&
+    !TITLE_SECTION_PATTERN.test(line.replace(/:$/, "")) &&
+    !/^[•*-]\s*/.test(line) &&
+    !/^(save|apply|message|share|follow|connect)$/i.test(line) &&
+    !/^the job$/i.test(line) &&
     !/^the role$/i.test(line) &&
+    !/^what you'll do/i.test(line) &&
+    !/^requirements$/i.test(line) &&
+    !/^benefits$/i.test(line) &&
+    !/^tasks$/i.test(line) &&
+    !/:$/.test(line) &&
     !/^experience[:\s-]/i.test(line) &&
     !/\b\d+\s*[–-]\s*\d+\s+years?\b/i.test(line) &&
     !/\b[A-Z]{2}\b/.test(line) &&
@@ -195,7 +342,7 @@ function isCompanyCandidate(line?: string) {
     !/preferred|work location|employment type|required qualifications|key responsibilities|skills match/i.test(
       line
     ) &&
-    !/developer|engineer|analyst|designer|manager|specialist|intern|consultant/i.test(line)
+    !/\b(developer|engineer|analyst|designer|manager|specialist|intern|consultant|associate|operator)\b/i.test(line)
   );
 }
 

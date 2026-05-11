@@ -5,7 +5,7 @@ import type {
 import type { GenerationPayload } from "./payload";
 
 const EMAIL_CTA_QUESTION =
-  "Would you be available for a short Zoom call this week to discuss the role?";
+  "Would you be available for a short Zoom call to discuss the role?";
 
 const JOB_METADATA_PATTERN =
   /(applied\s+\d+\s+(seconds?|minutes?|hours?|days?)\s+ago|reposted|promoted|applicants?|clicked apply|actively reviewing|easy apply|matches your job preferences|hybrid|on-site|onsite|remote|full[- ]time|part[- ]time|contract|save\b|see how you compare|meet the hiring team|show more options)/i;
@@ -30,6 +30,7 @@ export function finalizeGeneratedDocuments(
 function finalizeCoverLetter(text: string, payload: GenerationPayload) {
   let result = normalizeGeneratedText(text);
   result = stripJobMetadata(result);
+  result = normalizeLegacyCta(result);
   result = ensureCoverLetterGreeting(result, payload);
   result = ensureRoleMention(result, payload.parsedRole);
   result = removeStandaloneSkillsParagraph(result);
@@ -85,7 +86,7 @@ function isValidContactPersonName(value: string) {
 }
 
 function ensureCoverLetterGreeting(text: string, payload: GenerationPayload) {
-  const greeting = payload.parsedCompany
+  const greeting = isUsableCompanyGreeting(payload.parsedCompany)
     ? `Dear ${payload.parsedCompany} Hiring Team,`
     : "Dear Hiring Team,";
   const paragraphs = text.split("\n\n").filter(Boolean);
@@ -124,7 +125,7 @@ function ensureCoverLetterSignature(text: string, payload: GenerationPayload) {
       .filter((line) => {
         const trimmed = line.trim();
         return !(
-          /^(best regards|sincerely),?$/i.test(trimmed) ||
+          /^(best regards|kind regards|sincerely),?$/i.test(trimmed) ||
           trimmed === payload.candidateName ||
           trimmed === payload.candidateEmail ||
           trimmed === payload.candidatePhone
@@ -146,7 +147,7 @@ function ensureEmailSignature(text: string, payload: GenerationPayload) {
       .filter((line) => {
         const trimmed = line.trim();
         return !(
-          /^(best regards|sincerely),?$/i.test(trimmed) ||
+          /^(best regards|kind regards|sincerely),?$/i.test(trimmed) ||
           trimmed === payload.candidateName ||
           trimmed === payload.candidateEmail ||
           trimmed === payload.candidatePhone
@@ -206,7 +207,7 @@ function removeDuplicateLines(text: string) {
     .filter(Boolean)
     .map((paragraph) => {
       if (
-        /^(best regards|sincerely),?$/im.test(paragraph) ||
+        /^(best regards|kind regards|sincerely),?$/im.test(paragraph) ||
         /@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(paragraph)
       ) {
         return paragraph
@@ -245,8 +246,29 @@ function removeDuplicateLines(text: string) {
   return cleanedParagraphs.join("\n\n");
 }
 
+function isUsableCompanyGreeting(company?: string) {
+  if (!company) {
+    return false;
+  }
+
+  return (
+    company.length < 60 &&
+    !/[0-9]/.test(company) &&
+    !/,/.test(company) &&
+    !/\b(remote|hybrid|on-site|onsite)\b/i.test(company) &&
+    !/\b(berlin|london|paris|munich|hamburg|new york|san francisco|seattle|austin|boston|germany|united states|usa|uk)\b/i.test(company)
+  );
+}
+
 function normalizeGeneratedText(text: string) {
   return text.replace(/\n{3,}/g, "\n\n").replace(/\.\./g, ".").trim();
+}
+
+function normalizeLegacyCta(text: string) {
+  return text.replace(
+    /Would you be available for a short Zoom call(?:\s+this week)?\s+to (?:discuss|explore) [^?]+\?/gi,
+    EMAIL_CTA_QUESTION
+  );
 }
 
 function normalizeTechnologyCapitalization(text: string) {

@@ -374,6 +374,7 @@ function sanitizeCompanyName(company?: string) {
   if (
     !normalized ||
     JOB_METADATA_PATTERN.test(normalized) ||
+    /^the job$/i.test(normalized) ||
     /^the role$/i.test(normalized) ||
     normalized.length > 80
   ) {
@@ -385,11 +386,14 @@ function sanitizeCompanyName(company?: string) {
 
 function sanitizeRoleTitle(role?: string) {
   const normalized = role
-    ?.replace(/\s*[|,-].*$/, "")
+    ?.replace(/^save\s+/i, "")
+    .replace(/\s*[·|]\s*.*$/, "")
+    .replace(/\s*-\s*(remote|hybrid|on-site|onsite|united states|usa|us|uk|canada|germany|france|spain|italy|australia|new zealand)\b.*$/i, "")
+    .replace(/\s*,\s*(remote|hybrid|on-site|onsite|united states|usa|us|uk|canada|germany|france|spain|italy|australia|new zealand)\b.*$/i, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 
-  if (!normalized || JOB_METADATA_PATTERN.test(normalized) || normalized.split(/\s+/).length > 8) {
+  if (!normalized || JOB_METADATA_PATTERN.test(normalized) || normalized.split(/\s+/).length > 10) {
     return "this role";
   }
 
