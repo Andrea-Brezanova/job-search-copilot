@@ -12,6 +12,16 @@ type AuthPanelProps = {
   variant?: "header" | "card";
 };
 
+function getSignUpRedirectUrl() {
+  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+  if (!configuredSiteUrl) {
+    return undefined;
+  }
+
+  return configuredSiteUrl.replace(/\/+$/g, "");
+}
+
 function formatAuthErrorMessage(error: unknown, mode: "sign_in" | "sign_up") {
   const fallback = "We could not complete authentication. Please try again.";
 
@@ -66,6 +76,9 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: getSignUpRedirectUrl(),
+          },
         });
 
         if (error) {
