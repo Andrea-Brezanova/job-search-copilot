@@ -4,6 +4,17 @@ import type {
   UpdateApplicationInput,
 } from "@/lib/types";
 
+/** Null, undefined, and blank strings are treated as "no timestamp" (DB/UI sentinels). */
+export function effectiveIsoTimestamp(value: string | null | undefined): string | null {
+  if (value == null) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  return trimmed === "" ? null : trimmed;
+}
+
 export function buildApplicationActionUpdate(
   action: ApplicationUpdateAction,
   application: Pick<
@@ -14,25 +25,27 @@ export function buildApplicationActionUpdate(
 ): UpdateApplicationInput {
   switch (action) {
     case "mark_applied": {
-      const appliedAt = application.applied_at ?? now.toISOString();
+      const appliedAt = effectiveIsoTimestamp(application.applied_at) ?? now.toISOString();
       const followUpDate = new Date(appliedAt);
       followUpDate.setDate(followUpDate.getDate() + 7);
 
       return {
         status: "applied",
         appliedAt,
-        followUpAt: application.follow_up_at ?? followUpDate.toISOString(),
+        followUpAt:
+          effectiveIsoTimestamp(application.follow_up_at) ?? followUpDate.toISOString(),
       };
     }
     case "set_follow_up": {
-      const appliedAt = application.applied_at ?? now.toISOString();
+      const appliedAt = effectiveIsoTimestamp(application.applied_at) ?? now.toISOString();
       const followUpDate = new Date(now);
       followUpDate.setDate(followUpDate.getDate() + 7);
 
       return {
         status: application.status === "draft" ? "applied" : application.status,
         appliedAt,
-        followUpAt: application.follow_up_at ?? followUpDate.toISOString(),
+        followUpAt:
+          effectiveIsoTimestamp(application.follow_up_at) ?? followUpDate.toISOString(),
       };
     }
     case "move_to_interview":

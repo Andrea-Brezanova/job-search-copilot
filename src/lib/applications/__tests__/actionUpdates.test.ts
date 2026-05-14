@@ -9,7 +9,7 @@ describe("buildApplicationActionUpdate", () => {
     status: "draft" as const,
   };
 
-  it("maps mark_applied to applied status and timestamp", () => {
+  it("mark_applied sets applied_at and follow_up_at when both are missing", () => {
     const now = new Date("2026-05-04T12:00:00.000Z");
 
     expect(
@@ -18,6 +18,57 @@ describe("buildApplicationActionUpdate", () => {
       status: "applied",
       appliedAt: "2026-05-04T12:00:00.000Z",
       followUpAt: "2026-05-11T12:00:00.000Z",
+    });
+  });
+
+  it("mark_applied treats blank follow_up_at as missing and sets a default", () => {
+    const now = new Date("2026-05-04T12:00:00.000Z");
+
+    expect(
+      buildApplicationActionUpdate(
+        "mark_applied",
+        { ...baseApplication, follow_up_at: "" },
+        now,
+      ),
+    ).toEqual({
+      status: "applied",
+      appliedAt: "2026-05-04T12:00:00.000Z",
+      followUpAt: "2026-05-11T12:00:00.000Z",
+    });
+  });
+
+  it("mark_applied treats blank applied_at as missing when computing follow-up", () => {
+    const now = new Date("2026-05-04T12:00:00.000Z");
+
+    expect(
+      buildApplicationActionUpdate(
+        "mark_applied",
+        { ...baseApplication, applied_at: "  " },
+        now,
+      ),
+    ).toEqual({
+      status: "applied",
+      appliedAt: "2026-05-04T12:00:00.000Z",
+      followUpAt: "2026-05-11T12:00:00.000Z",
+    });
+  });
+
+  it("mark_applied preserves existing follow_up_at", () => {
+    const now = new Date("2026-05-04T12:00:00.000Z");
+
+    expect(
+      buildApplicationActionUpdate(
+        "mark_applied",
+        {
+          ...baseApplication,
+          follow_up_at: "2026-05-20T09:00:00.000Z",
+        },
+        now,
+      ),
+    ).toEqual({
+      status: "applied",
+      appliedAt: "2026-05-04T12:00:00.000Z",
+      followUpAt: "2026-05-20T09:00:00.000Z",
     });
   });
 

@@ -238,7 +238,7 @@ export async function updateApplicationById(
     updatePayload.applied_at = input.appliedAt;
   }
 
-  if (input.followUpAt !== undefined) {
+  if (input.followUpAt !== undefined && input.followUpAt !== null) {
     updatePayload.follow_up_at = input.followUpAt;
   }
 

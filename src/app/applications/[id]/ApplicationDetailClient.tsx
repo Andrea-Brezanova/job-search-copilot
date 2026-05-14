@@ -9,6 +9,11 @@ import { ApplicationContactInfo } from "./components/ApplicationContactInfo";
 import { ApplicationOverview } from "./components/ApplicationOverview";
 import { ApplicationStatusActions } from "./components/ApplicationStatusActions";
 import { FollowUpEmailSection } from "./components/FollowUpEmailSection";
+import { effectiveIsoTimestamp } from "@/lib/applications/actionUpdates";
+import {
+  defaultFollowUpIsoFromAppliedAt,
+  mergePersistedFollowUpAfterSetAction,
+} from "./lib/markAppliedFollowUp";
 import { generateFollowUpEmail } from "./lib/generateFollowUpEmail";
 import { updateApplicationFields } from "./lib/updateApplicationFields";
 import { updateApplicationStatus } from "./lib/updateApplicationStatus";
@@ -123,11 +128,37 @@ export function ApplicationDetailClient({
 
     try {
       const accessToken = session?.access_token ?? "";
-      const updatedRecord = await updateApplicationStatus(
+      let updatedRecord = await updateApplicationStatus(
         applicationId,
         accessToken,
         action
       );
+
+      if (
+        action === "mark_applied" &&
+        !effectiveIsoTimestamp(updatedRecord.follow_up_at)
+      ) {
+        const appliedAt =
+          effectiveIsoTimestamp(updatedRecord.applied_at) ?? new Date().toISOString();
+        const optimisticFollowUpAt = defaultFollowUpIsoFromAppliedAt(appliedAt);
+
+        applyApplicationRecord({
+          ...updatedRecord,
+          follow_up_at: optimisticFollowUpAt,
+        });
+
+        const afterSetFollowUp = await updateApplicationStatus(
+          applicationId,
+          accessToken,
+          "set_follow_up",
+        );
+
+        updatedRecord = mergePersistedFollowUpAfterSetAction(
+          afterSetFollowUp,
+          optimisticFollowUpAt,
+        );
+      }
+
       applyApplicationRecord(updatedRecord);
       setSaveMessage(buildActionSuccessMessage(action));
     } catch (error) {

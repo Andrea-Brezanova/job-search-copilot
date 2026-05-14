@@ -220,6 +220,24 @@ describe("db queries user scoping", () => {
     );
   });
 
+  it("updateApplicationById omits follow_up_at when followUpAt is null", async () => {
+    const chain = createSelectChain({
+      data: { id: "app-1", user_id: "user-123" },
+      error: null,
+    });
+    getSupabaseServerClient.mockReturnValue({
+      from: vi.fn().mockReturnValue(chain),
+    });
+
+    await updateApplicationById("app-1", "user-123", {
+      followUpAt: null,
+      status: "applied",
+    });
+
+    const updatePayload = chain.update.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(updatePayload).not.toHaveProperty("follow_up_at");
+  });
+
   it("updateApplicationById maps contact metadata updates", async () => {
     const chain = createSelectChain({
       data: { id: "app-1", user_id: "user-123" },
