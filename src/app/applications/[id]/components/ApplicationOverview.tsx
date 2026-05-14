@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 import type { ApplicationRecord, ApplicationStatus } from "@/lib/types";
+import { DocumentPanel } from "@/components/ui/DocumentPanel";
+import { MetadataPanel } from "@/components/ui/MetadataPanel";
+import { MetricStrip } from "@/components/ui/MetricStrip";
+import { StatusPill } from "@/components/ui/StatusPill";
 
 type ApplicationOverviewProps = {
   application: ApplicationRecord;
@@ -12,66 +16,47 @@ export function ApplicationOverview({
 }: ApplicationOverviewProps) {
   return (
     <>
-      <header className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <h1 className="text-3xl font-semibold text-stone-900">
+      <header className="surface-paper p-6">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">
+          Application record
+        </p>
+        <h1 className="mt-3 font-display text-4xl italic leading-none text-[var(--color-navy)]">
           {application.role_title}
         </h1>
-        <p className="mt-2 text-sm text-stone-600">
+        <p className="mt-3 text-sm text-[var(--color-muted)]">
           {application.company_name ?? "Company not parsed yet"}
         </p>
-        <div className="mt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Status
-          </p>
-          <p className="mt-2 inline-flex rounded-full bg-stone-100 px-3 py-1 text-sm font-medium capitalize text-stone-800">
-            {application.status}
-          </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <StatusPill status={application.status} />
+          {application.follow_up_at && application.status === "applied" ? (
+            <StatusPill label="Follow-up scheduled" tone="follow_up_due" />
+          ) : null}
         </div>
       </header>
 
-      <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-stone-900">
-            Application overview
-          </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Track the current state of this application and review the key dates.
-          </p>
-        </div>
+      <MetadataPanel
+        title="Application overview"
+        description="Track the current state of this application and review the key dates."
+        eyebrow="Workflow state"
+      >
+        <MetricStrip
+          items={[
+            { label: "Status", value: capitalizeStatus(application.status) },
+            { label: "Created", value: formatDate(application.created_at) },
+            { label: "Updated", value: formatDate(application.updated_at) },
+            { label: "Applied", value: formatDate(application.applied_at) },
+            { label: "Follow-up", value: formatDate(application.follow_up_at) },
+            { label: "Archived", value: formatDate(application.archived_at) },
+          ]}
+          columnsClassName="md:grid-cols-2 xl:grid-cols-3"
+        />
+      </MetadataPanel>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <OverviewMetric label="Role" value={application.role_title} />
-          <OverviewMetric
-            label="Company"
-            value={application.company_name ?? "Not available"}
-          />
-          <OverviewMetric label="Status" value={capitalizeStatus(application.status)} />
-          <OverviewMetric
-            label="Location"
-            value={application.location_text ?? "Not available"}
-          />
-          <OverviewMetric label="Created" value={formatDate(application.created_at)} />
-          <OverviewMetric label="Updated" value={formatDate(application.updated_at)} />
-          <OverviewMetric label="Applied" value={formatDate(application.applied_at)} />
-          <OverviewMetric
-            label="Follow-up"
-            value={formatDate(application.follow_up_at)}
-          />
-          <OverviewMetric
-            label="Archived"
-            value={formatDate(application.archived_at)}
-          />
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-stone-900">Job details</h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Review the original job context alongside the generated application drafts.
-          </p>
-        </div>
-
+      <DocumentPanel
+        title="Job details"
+        description="Review the original job context alongside the generated application drafts."
+        eyebrow="Context"
+      >
         <div className="grid gap-4 md:grid-cols-2">
           <OverviewMetric
             label="Location"
@@ -84,7 +69,7 @@ export function ApplicationOverview({
                 href={jobUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-brand-700 underline-offset-4 hover:underline"
+                className="text-[var(--color-navy)] underline-offset-4 hover:underline"
               >
                 Open job posting
               </a>
@@ -100,26 +85,26 @@ export function ApplicationOverview({
           />
         </div>
 
-        <div className="mt-4 rounded-xl bg-stone-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+        <div className="surface-warm mt-4 px-4 py-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-faint)]">
             Fit summary
           </p>
-          <p className="mt-2 text-sm leading-6 text-stone-700">
+          <p className="mt-2 font-doc text-[15px] leading-8 text-[var(--color-ink-soft)]">
             {application.fit_summary ?? "No fit summary saved."}
           </p>
         </div>
 
-        <details className="mt-4 rounded-xl border border-stone-200 bg-stone-50">
-          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-stone-800">
+        <details className="mt-4 rounded-xl border border-[var(--color-line)] bg-[rgba(255,255,255,0.45)]">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-[var(--color-ink)]">
             Original job description
           </summary>
-          <div className="border-t border-stone-200 px-4 py-4">
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-sm leading-6 text-stone-700">
+          <div className="border-t border-[var(--color-line)] px-4 py-4">
+            <pre className="font-doc max-h-80 overflow-auto whitespace-pre-wrap text-[15px] leading-8 text-[var(--color-ink-soft)]">
               {application.raw_job_text}
             </pre>
           </div>
         </details>
-      </section>
+      </DocumentPanel>
     </>
   );
 }
@@ -132,11 +117,11 @@ function OverviewMetric({
   value: ReactNode;
 }) {
   return (
-    <div className="rounded-xl bg-stone-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+    <div className="surface-warm px-4 py-4">
+      <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-faint)]">
         {label}
       </p>
-      <div className="mt-2 text-sm leading-6 text-stone-800">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--color-ink-soft)]">{value}</div>
     </div>
   );
 }

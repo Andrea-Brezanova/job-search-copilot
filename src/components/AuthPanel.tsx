@@ -151,7 +151,7 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
 
   if (!isConfigured) {
     return (
-      <p className={variant === "card" ? "text-sm text-stone-500" : "text-xs text-stone-500"}>
+      <p className={variant === "card" ? "text-sm text-[var(--color-faint)]" : "text-xs text-[var(--color-rail-muted)]"}>
         Supabase auth is not configured in this environment.
       </p>
     );
@@ -159,7 +159,7 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
 
   if (isLoading) {
     return (
-      <p className={variant === "card" ? "text-sm text-stone-500" : "text-xs text-stone-500"}>
+      <p className={variant === "card" ? "text-sm text-[var(--color-faint)]" : "text-xs text-[var(--color-rail-muted)]"}>
         Checking session...
       </p>
     );
@@ -174,14 +174,33 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
             : "flex flex-col items-end gap-2"
         }
       >
-        <p className="text-sm text-stone-600">
-          Signed in as <span className="font-medium text-stone-900">{user.email}</span>
+        <p
+          className={
+            variant === "card"
+              ? "text-sm text-[var(--color-muted)]"
+              : "text-sm text-[var(--color-rail-text)]"
+          }
+        >
+          Signed in as{" "}
+          <span
+            className={
+              variant === "card"
+                ? "font-medium text-[var(--color-ink)]"
+                : "font-medium text-white"
+            }
+          >
+            {user.email}
+          </span>
         </p>
         <button
           type="button"
           onClick={() => void handleSignOut()}
           disabled={isSubmitting}
-          className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-60"
+          className={
+            variant === "card"
+              ? "rounded-md border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-sm font-medium text-[var(--color-ink-soft)] transition hover:border-[var(--color-navy)]/35 hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-60"
+              : "rounded-md border border-white/10 bg-[var(--color-rail-hi)] px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          }
         >
           {isSubmitting ? "Signing out..." : "Sign out"}
         </button>
@@ -202,21 +221,33 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
       <div
         className={
           variant === "card"
-            ? "flex gap-3 text-sm font-medium text-stone-600"
-            : "flex gap-2 text-xs font-medium text-stone-600"
+            ? "flex gap-3 text-sm font-medium text-[var(--color-muted)]"
+            : "flex gap-2 text-xs font-medium text-[var(--color-rail-text)]"
         }
       >
         <button
           type="button"
           onClick={() => setMode("sign_in")}
-          className={mode === "sign_in" ? "text-stone-900 underline underline-offset-4" : ""}
+          className={
+            mode === "sign_in"
+              ? variant === "card"
+                ? "text-[var(--color-ink)] underline underline-offset-4"
+                : "text-white underline underline-offset-4"
+              : ""
+          }
         >
           Sign in
         </button>
         <button
           type="button"
           onClick={() => setMode("sign_up")}
-          className={mode === "sign_up" ? "text-stone-900 underline underline-offset-4" : ""}
+          className={
+            mode === "sign_up"
+              ? variant === "card"
+                ? "text-[var(--color-ink)] underline underline-offset-4"
+                : "text-white underline underline-offset-4"
+              : ""
+          }
         >
           Sign up
         </button>
@@ -226,27 +257,27 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         placeholder="Email"
-        className="w-full rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-3 text-sm text-[var(--color-ink)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
       />
       <input
         type="password"
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         placeholder="Password"
-        className="w-full rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-3 text-sm text-[var(--color-ink)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
       />
       {mode === "sign_up" ? (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-[var(--color-faint)]">
           Use at least 6 characters.
         </p>
       ) : null}
       {mode === "sign_in" ? (
-        <label className="flex items-center gap-2 text-sm text-stone-600">
+        <label className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
           <input
             type="checkbox"
             checked={rememberMe}
             onChange={(event) => setRememberMe(event.target.checked)}
-            className="h-4 w-4 rounded border-stone-300 text-brand-700 focus:ring-brand-200"
+            className="h-4 w-4 rounded border-[var(--color-line)] text-[var(--color-navy)] focus:ring-[var(--color-navy-soft)]"
           />
           Remember me
         </label>
@@ -255,7 +286,7 @@ export function AuthPanel({ variant = "header" }: AuthPanelProps) {
         type="button"
         onClick={() => void handleSubmit()}
         disabled={isSubmitting || !email.trim() || password.length < 6}
-        className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
+        className="w-full rounded-md border border-[var(--color-navy)] bg-[var(--color-navy)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#18314f] disabled:cursor-not-allowed disabled:border-[var(--color-line)] disabled:bg-[#b8b1a2]"
       >
         {isSubmitting
           ? mode === "sign_up"

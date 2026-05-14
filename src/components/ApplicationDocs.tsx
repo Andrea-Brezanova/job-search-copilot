@@ -10,6 +10,8 @@ import {
 } from "docx";
 import { jsPDF } from "jspdf";
 import type { ApplicationDocs as ApplicationDocsType } from "@/lib/types";
+import { DocumentPanel } from "@/components/ui/DocumentPanel";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 
 type ApplicationDocsProps = {
   documents: ApplicationDocsType | null;
@@ -35,16 +37,16 @@ export function ApplicationDocs({
   if (!documents) {
     return (
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Cover letter</h2>
-          <p className="mt-2 text-sm text-stone-600">
+        <article className="surface-paper border-dashed p-6">
+          <h2 className="font-display text-2xl italic text-[var(--color-navy)]">Cover letter</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
             Your editable cover letter draft will appear here after generation.
           </p>
         </article>
 
-        <article className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Application email</h2>
-          <p className="mt-2 text-sm text-stone-600">
+        <article className="surface-paper border-dashed p-6">
+          <h2 className="font-display text-2xl italic text-[var(--color-navy)]">Application email</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
             Your editable email draft will appear here after generation.
           </p>
         </article>
@@ -169,86 +171,80 @@ export function ApplicationDocs({
 
   return (
     <section className="grid gap-6 lg:grid-cols-2">
-      <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-stone-900">Cover letter</h2>
-            {coverLetterCopyMessage ? (
-              <p className="mt-1 text-xs text-stone-500">{coverLetterCopyMessage}</p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <DocumentPanel
+        title="Cover letter"
+        eyebrow="Document surface"
+        description={coverLetterCopyMessage || "Review and edit the letter before you export or save it."}
+        actions={
+          <>
             <button
               type="button"
               onClick={handleCopyCoverLetter}
               aria-label="Copy cover letter"
               title="Copy cover letter"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
+              className={buttonStyles({ variant: "secondary", size: "sm" })}
             >
-              <span aria-hidden="true" className="text-base leading-none">⧉</span>
+              Copy
             </button>
             <details className="relative">
-              <summary className="list-none rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 cursor-pointer">
+              <summary className={`${buttonStyles({ variant: "secondary", size: "sm" })} list-none cursor-pointer`}>
                 Export
               </summary>
-              <div className="absolute right-0 z-10 mt-2 min-w-[140px] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
+              <div className="absolute right-0 z-10 mt-2 min-w-[140px] rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)] p-2 shadow-lg">
                 <button
                   type="button"
                   onClick={handleExportPdf}
-                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink-soft)] transition hover:bg-[var(--color-warm)]"
                 >
                   Export as PDF
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleExportDocx()}
-                  className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+                  className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink-soft)] transition hover:bg-[var(--color-warm)]"
                 >
                   Export as DOCX
                 </button>
               </div>
             </details>
-          </div>
-        </div>
-
+          </>
+        }
+      >
         <textarea
           value={currentDocuments.coverLetter}
           onChange={(event) => onChange?.("coverLetter", event.target.value)}
           readOnly={!onChange}
-          className="mt-4 min-h-[360px] w-full rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-7 text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="font-doc min-h-[420px] w-full rounded-2xl border border-[var(--color-line)] bg-[rgba(255,255,255,0.45)] p-5 text-[15px] leading-8 text-[var(--color-ink-soft)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
         />
-      </article>
+      </DocumentPanel>
 
-      <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-stone-900">Application email</h2>
-            {emailCopyMessage ? (
-              <p className="mt-1 text-xs text-stone-500">{emailCopyMessage}</p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <DocumentPanel
+        title="Application email"
+        eyebrow="Outreach draft"
+        description={emailCopyMessage || "Open a Gmail draft or copy the email once the wording is ready."}
+        actions={
+          <>
             <button
               type="button"
               onClick={handleOpenEmailInGmail}
               disabled={!currentDocuments.applicationEmail.trim()}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className={buttonStyles({ variant: "secondary", size: "sm" })}
             >
-              Open email in Gmail
+              Open in Gmail
             </button>
             <button
               type="button"
               onClick={handleCopyEmail}
               aria-label="Copy email"
               title="Copy email"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
+              className={buttonStyles({ variant: "secondary", size: "sm" })}
             >
-              <span aria-hidden="true" className="text-base leading-none">⧉</span>
+              Copy
             </button>
-          </div>
-        </div>
-
-        <p className="mt-3 text-xs text-stone-500">
+          </>
+        }
+      >
+        <p className="text-xs text-[var(--color-faint)]">
           This opens Gmail with a draft. You can review and send it there.
         </p>
 
@@ -258,9 +254,9 @@ export function ApplicationDocs({
             onChange?.("applicationEmail", event.target.value)
           }
           readOnly={!onChange}
-          className="mt-4 min-h-[260px] w-full rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-7 text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="font-doc mt-4 min-h-[320px] w-full rounded-2xl border border-[var(--color-line)] bg-[rgba(255,255,255,0.45)] p-5 text-[15px] leading-8 text-[var(--color-ink-soft)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
         />
-      </article>
+      </DocumentPanel>
     </section>
   );
 }

@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { ApplicationDocs } from "@/components/ApplicationDocs";
 import { ApplicationSavePanel } from "@/components/ApplicationSavePanel";
 import { useAuth } from "@/components/AuthProvider";
+import { AppShell } from "@/components/ui/AppShell";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 import { ApplicationContactInfo } from "./components/ApplicationContactInfo";
 import { ApplicationOverview } from "./components/ApplicationOverview";
 import { ApplicationStatusActions } from "./components/ApplicationStatusActions";
@@ -251,42 +254,49 @@ export function ApplicationDetailClient({
 
   if (isLoading) {
     return (
-      <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
-        <p className="text-sm text-stone-600">Loading application...</p>
-      </main>
+      <AppShell contentClassName="max-w-5xl">
+        <p className="text-sm text-[var(--color-muted)]">Loading application...</p>
+      </AppShell>
     );
   }
 
   if (!application) {
     return (
-      <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
+      <AppShell contentClassName="max-w-5xl">
         {isLoggedOut ? (
-          <section className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-            <p className="text-sm text-stone-600">
+          <section className="surface-panel border-dashed p-6">
+            <p className="text-sm text-[var(--color-muted)]">
               Sign in to view saved application details.
             </p>
             <Link
               href="/"
-              className="mt-4 inline-flex text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+              className="mt-4 inline-flex text-sm font-medium text-[var(--color-navy)] underline-offset-4 hover:underline"
             >
               Go to workspace
             </Link>
           </section>
         ) : (
-          <p className="text-sm text-stone-600">Application not found.</p>
+          <p className="text-sm text-[var(--color-muted)]">Application not found.</p>
         )}
-      </main>
+      </AppShell>
     );
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
-      <Link
-        href="/applications"
-        className="text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
-      >
-        Back to applications
-      </Link>
+    <AppShell contentClassName="max-w-5xl">
+      <PageHeader
+        eyebrow="Application detail"
+        title={application.role_title}
+        description={`${application.company_name ?? "Saved application"} · review documents, update status, and keep metadata in one place.`}
+        actions={
+          <Link
+            href="/applications"
+            className={buttonStyles({ variant: "secondary", size: "sm" })}
+          >
+            Back to applications
+          </Link>
+        }
+      />
 
       {errorMessage ? (
         <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -347,7 +357,7 @@ export function ApplicationDetailClient({
           savedApplicationId={application.id}
         />
       </section>
-    </main>
+    </AppShell>
   );
 }
 

@@ -1,6 +1,9 @@
 // This file renders the save-and-track controls shared by the workspace and detail view.
 import Link from "next/link";
 import type { ApplicationStatus } from "@/lib/types";
+import { MetadataPanel } from "@/components/ui/MetadataPanel";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 
 type ApplicationSavePanelProps = {
   status: ApplicationStatus;
@@ -26,30 +29,29 @@ export function ApplicationSavePanel({
   saveButtonLabel = "Save application",
 }: ApplicationSavePanelProps) {
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-stone-900">Save application</h2>
-        <p className="mt-1 text-sm text-stone-600">
-          Save your document edits and notes for this application.
-        </p>
-      </div>
-
+    <MetadataPanel
+      title="Save application"
+      description="Save your document edits and notes for this application."
+      eyebrow="Workflow state"
+    >
       <div className="grid gap-4 md:grid-cols-2">
-        <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-          <p className="text-sm font-medium text-stone-700">Status</p>
-          <p className="mt-2 inline-flex rounded-full bg-white px-3 py-2 text-sm font-medium capitalize text-stone-800">
-            {status}
+        <article className="surface-warm px-4 py-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--color-faint)]">
+            Status
           </p>
+          <div className="mt-3">
+            <StatusPill status={status} />
+          </div>
         </article>
 
-        <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-          <label className="block text-sm font-medium text-stone-700">
+        <article className="surface-warm px-4 py-4">
+          <label className="block text-sm font-medium text-[var(--color-ink-soft)]">
             Notes
             <textarea
               value={notes}
               onChange={(event) => onNotesChange(event.target.value)}
               placeholder="Optional notes about this application."
-              className="mt-2 min-h-[140px] w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm leading-6 text-stone-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="mt-2 min-h-[160px] w-full rounded-xl border border-[var(--color-line)] bg-white px-3 py-3 text-sm leading-7 text-[var(--color-ink-soft)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
             />
           </label>
         </article>
@@ -60,7 +62,7 @@ export function ApplicationSavePanel({
           type="button"
           onClick={onSave}
           disabled={isDisabled || isSaving}
-          className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
+          className={buttonStyles({ variant: "primary", size: "lg" })}
         >
           {isSaving ? "Saving..." : saveButtonLabel}
         </button>
@@ -68,14 +70,14 @@ export function ApplicationSavePanel({
         {savedApplicationId ? (
           <Link
             href={`/applications/${savedApplicationId}`}
-            className="text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+            className="text-sm font-medium text-[var(--color-navy)] underline-offset-4 hover:underline"
           >
             Open saved application
           </Link>
         ) : null}
       </div>
 
-      {message ? <p className="mt-4 text-sm text-stone-600">{message}</p> : null}
-    </section>
+      {message ? <p className="mt-4 text-sm text-[var(--color-muted)]">{message}</p> : null}
+    </MetadataPanel>
   );
 }

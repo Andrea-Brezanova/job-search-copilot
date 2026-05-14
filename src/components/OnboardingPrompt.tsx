@@ -33,16 +33,16 @@ export function OnboardingPrompt({
   }
 
   return (
-    <section className="mb-8 rounded-3xl border border-brand-300 bg-[linear-gradient(180deg,rgba(222,238,228,1),rgba(249,250,249,1))] p-6 shadow-lg ring-1 ring-brand-100">
+    <section className="surface-panel mb-8 border-[var(--color-line)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(240,234,217,0.88))] p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">
             Onboarding
           </p>
-          <h2 className="mt-2 text-2xl font-semibold text-stone-900">
+          <h2 className="mt-2 font-display text-3xl italic leading-none text-[var(--color-navy)]">
             Create your first application package
           </h2>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
+          <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
             Add your resume, paste a job description, and generate your first application package. Once it looks good, save it to start tracking your applications.
           </p>
         </div>
@@ -50,14 +50,14 @@ export function OnboardingPrompt({
           type="button"
           onClick={onGenerate}
           disabled={!canGenerate || isGenerating}
-          className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
+          className="rounded-md border border-[var(--color-ochre)] bg-[var(--color-ochre)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#8f5e28] disabled:cursor-not-allowed disabled:border-[var(--color-line)] disabled:bg-[#b8b1a2]"
         >
           {isGenerating ? "Generating..." : "Generate your first application"}
         </button>
       </div>
 
       {debugData ? (
-        <div className="mt-4 rounded-xl border border-dashed border-stone-300 bg-white/70 px-4 py-3 text-xs text-stone-600">
+        <div className="mt-4 rounded-xl border border-dashed border-[var(--color-line)] bg-white/70 px-4 py-3 text-xs text-[var(--color-muted)]">
           <p><span className="font-semibold">isLoggedIn:</span> {String(debugData.isLoggedIn)}</p>
           <p><span className="font-semibold">applicationsCount:</span> {debugData.applicationsCount}</p>
           <p><span className="font-semibold">hasDefaultResume:</span> {String(debugData.hasDefaultResume)}</p>
@@ -84,7 +84,7 @@ export function OnboardingPrompt({
       </div>
 
       {hasGeneratedFirstPackage ? (
-        <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <p className="mt-4 rounded-xl border border-[#c4d5c2] bg-[var(--color-ok-soft)] px-4 py-3 text-sm text-[var(--color-ok)]">
           Your first application is ready. Save it to track it.
         </p>
       ) : null}
@@ -102,23 +102,23 @@ function OnboardingChecklistItem({
   completed: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+    <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-4">
       <div className="flex items-start gap-3">
         <div
           className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
             completed
               ? "bg-emerald-100 text-emerald-700"
-              : "bg-stone-100 text-stone-500"
+              : "bg-[var(--color-warm)] text-[var(--color-muted)]"
           }`}
         >
           {completed ? "✓" : step.replace("Step ", "")}
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-faint)]">
             {step}
           </p>
-          <p className="mt-1 text-sm font-medium text-stone-900">{title}</p>
-          <p className="mt-1 text-sm text-stone-600">
+          <p className="mt-1 text-sm font-medium text-[var(--color-ink)]">{title}</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
             {completed ? "Completed" : "Not completed yet"}
           </p>
         </div>

@@ -1,4 +1,7 @@
 import type { ApplicationStatus, ApplicationUpdateAction } from "@/lib/types";
+import { MetadataPanel } from "@/components/ui/MetadataPanel";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 
 type ApplicationStatusActionsProps = {
   currentStatus: ApplicationStatus;
@@ -12,21 +15,18 @@ export function ApplicationStatusActions({
   isUpdating,
 }: ApplicationStatusActionsProps) {
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    <MetadataPanel
+      title="Status actions"
+      description="Update the application stage and key follow-up milestones."
+      eyebrow="Workflow actions"
+    >
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-stone-900">Status actions</h2>
-        <p className="mt-1 text-sm text-stone-600">
-          Update the application stage and key follow-up milestones.
-        </p>
-      </div>
-
-      <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-faint)]">
           Current status
         </p>
-        <p className="mt-2 inline-flex rounded-full bg-stone-100 px-3 py-1 text-sm font-medium capitalize text-stone-800">
-          {currentStatus}
-        </p>
+        <div className="mt-2">
+          <StatusPill status={currentStatus} />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -56,7 +56,7 @@ export function ApplicationStatusActions({
           onClick={() => void onAction("archive")}
         />
       </div>
-    </section>
+    </MetadataPanel>
   );
 }
 
@@ -74,7 +74,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={isUpdating}
-      className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+      className={buttonStyles({ variant: "secondary", size: "sm" })}
     >
       {label}
     </button>

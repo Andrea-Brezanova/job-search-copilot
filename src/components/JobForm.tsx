@@ -9,10 +9,13 @@ type JobFormProps = {
 
 export function JobForm({ value, onChange, textareaRef }: JobFormProps) {
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    <section className="surface-panel p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-stone-900">Job description</h2>
-        <p className="mt-1 text-sm text-stone-600">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">
+          Job snapshot
+        </p>
+        <h2 className="mt-2 text-lg font-semibold text-[var(--color-ink)]">Job description</h2>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
           Paste one job post you want to evaluate against your profile.
         </p>
       </div>
@@ -24,7 +27,7 @@ export function JobForm({ value, onChange, textareaRef }: JobFormProps) {
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Example: We are looking for a frontend engineer with React, TypeScript, accessibility, and design system experience..."
-          className="min-h-[180px] w-full rounded-xl border border-stone-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="min-h-[220px] w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-4 text-sm leading-7 text-[var(--color-ink-soft)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
         />
       </label>
     </section>

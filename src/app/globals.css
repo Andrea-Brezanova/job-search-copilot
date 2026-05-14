@@ -5,12 +5,82 @@
 
 :root {
   color-scheme: light;
+  --color-canvas: #f4f1ea;
+  --color-paper: #fcfaf4;
+  --color-panel: #ffffff;
+  --color-rail: #1b2230;
+  --color-rail-hi: #242c3d;
+  --color-rail-text: #d7dbe3;
+  --color-rail-muted: #9098a8;
+  --color-ink: #15192a;
+  --color-ink-soft: #2c3242;
+  --color-muted: #5c6478;
+  --color-faint: #8b91a0;
+  --color-line: #dcd6c8;
+  --color-hair: #e8e2d2;
+  --color-warm: #f0ead9;
+  --color-navy: #1f3a5f;
+  --color-navy-soft: #e2eaf3;
+  --color-ochre: #a56c2e;
+  --color-ochre-soft: #f2e6d2;
+  --color-ok: #3f6b4e;
+  --color-ok-soft: #dee8dd;
+  --font-ui: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-doc: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-display: "Baskerville", "Times New Roman", Georgia, serif;
+  --shadow-panel: 0 24px 50px -38px rgba(21, 25, 42, 0.18), 0 1px 0 rgba(255, 255, 255, 0.65) inset;
+  --shadow-paper: 4px 4px 0 rgba(232, 226, 210, 0.8), 0 30px 60px -40px rgba(21, 25, 42, 0.22);
+}
+
+html {
+  background: var(--color-canvas);
 }
 
 body {
-  @apply bg-stone-50 text-stone-900 antialiased;
+  @apply antialiased;
+  background:
+    radial-gradient(circle at top, rgba(31, 58, 95, 0.08), transparent 28%),
+    linear-gradient(180deg, #f7f3ec 0%, var(--color-canvas) 28%, #f1ece1 100%);
+  color: var(--color-ink);
+  font-family: var(--font-ui);
+}
+
+a {
+  color: inherit;
 }
 
 textarea {
   resize: vertical;
+}
+
+.font-doc {
+  font-family: var(--font-doc);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.app-shell {
+  min-height: calc(100vh - 57px);
+}
+
+.surface-panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-panel);
+}
+
+.surface-paper {
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-paper);
+}
+
+.surface-warm {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(240, 234, 217, 0.85));
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
 }

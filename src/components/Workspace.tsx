@@ -11,6 +11,11 @@ import { useAuth } from "@/components/AuthProvider";
 import { FitResult } from "@/components/FitResult";
 import { JobForm } from "@/components/JobForm";
 import { ResumeForm } from "@/components/ResumeForm";
+import { AppShell } from "@/components/ui/AppShell";
+import { DocumentPanel } from "@/components/ui/DocumentPanel";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 import { useApplicationGeneration } from "@/hooks/useApplicationGeneration";
 import { useDefaultResume } from "@/hooks/useDefaultResume";
 import { useFirstTimeUser } from "@/hooks/useFirstTimeUser";
@@ -203,8 +208,27 @@ export function Workspace() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(61,107,82,0.14),_transparent_35%),linear-gradient(to_bottom,_#f7f6f3,_#f5f5f4)]">
-      <div className="mx-auto max-w-6xl px-6 py-12">
+    <AppShell width="wide">
+      <PageHeader
+        eyebrow="Workspace"
+        title="Set up your workspace."
+        description="Add your resume, paste a job description, and generate an application package that stays editable, exportable, and ready to save."
+        actions={
+          <>
+            <StatusPill label={isLoggedIn ? "Signed in" : "Guest mode"} tone={isLoggedIn ? "applied" : "default"} />
+            <button
+              type="button"
+              onClick={() => void generateApplicationPackage()}
+              disabled={isDisabled || generation.isGenerating}
+              className={buttonStyles({ variant: "ochre", size: "lg" })}
+            >
+              {generation.isGenerating ? "Generating..." : "Generate application package"}
+            </button>
+          </>
+        }
+      />
+
+      <div className="mt-8">
         <OnboardingPrompt
           isVisible={shouldShowOnboarding}
           canGenerate={canSubmitWithCurrentResumeInput() && !generation.isGenerating}
@@ -228,7 +252,7 @@ export function Workspace() {
           }
         />
 
-        <section className="grid gap-6 lg:grid-cols-2">
+        <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <ResumeForm
             onChange={handleProfileTextChange}
             onFileChange={(file) => void handleResumeFileChange(file)}
@@ -258,16 +282,7 @@ export function Workspace() {
           />
         </section>
 
-        <section className="mt-6 flex flex-col items-center">
-          <button
-            type="button"
-            onClick={() => void generateApplicationPackage()}
-            disabled={isDisabled || generation.isGenerating}
-            className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 disabled:cursor-not-allowed disabled:bg-stone-300"
-          >
-            {generation.isGenerating ? "Generating..." : "Generate application package"}
-          </button>
-
+        <section className="mt-6 flex flex-col items-center rounded-xl border border-[var(--color-line)] bg-[rgba(255,255,255,0.45)] px-5 py-4">
           <GenerationProgressIndicator
             isGenerating={generation.isGenerating}
             stageText={generation.generationStages[generation.generationStageIndex]}
@@ -290,29 +305,19 @@ export function Workspace() {
               onViewApplications={() => router.push("/applications")}
             />
 
-            <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-stone-900">
-                    Generated package
-                  </h2>
-                  <p className="mt-1 text-sm text-stone-600">
-                    Review your drafts, make any edits you want, then save this
-                    package to track it in your Applications view.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <ApplicationDocs
-                  documents={applicationDocs}
-                  exportFileBaseName={exportFileBaseName}
-                  applicationEmailGmailSubject={applicationEmailGmailSubject}
-                  applicationEmailGmailTo=""
-                  onChange={generation.handleDocumentsChange}
-                />
-              </div>
-            </section>
+            <DocumentPanel
+              title="Generated package"
+              eyebrow="Documents on paper"
+              description="Review the drafted cover letter and application email, make any edits you want, then save the package into your tracked applications."
+            >
+              <ApplicationDocs
+                documents={applicationDocs}
+                exportFileBaseName={exportFileBaseName}
+                applicationEmailGmailSubject={applicationEmailGmailSubject}
+                applicationEmailGmailTo=""
+                onChange={generation.handleDocumentsChange}
+              />
+            </DocumentPanel>
 
             <ApplicationSavePanel
               status={generation.status}
@@ -327,7 +332,7 @@ export function Workspace() {
             />
 
             {!session ? (
-              <p className="text-sm text-stone-600">
+              <p className="text-sm text-[var(--color-muted)]">
                 You can generate without logging in. Sign in to save applications and view your saved list.
               </p>
             ) : null}
@@ -336,7 +341,7 @@ export function Workspace() {
           </section>
         ) : null}
       </div>
-    </main>
+    </AppShell>
   );
 }
 

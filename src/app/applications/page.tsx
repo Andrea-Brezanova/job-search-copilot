@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { AppShell } from "@/components/ui/AppShell";
+import { ApplicationRow } from "@/components/ui/ApplicationRow";
+import { MetadataPanel } from "@/components/ui/MetadataPanel";
+import { MetricStrip } from "@/components/ui/MetricStrip";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusPill } from "@/components/ui/StatusPill";
 import type { ApplicationRecord, ApplicationStatus } from "@/lib/types";
 
 const statusFilters: Array<{
@@ -156,15 +161,12 @@ export default function ApplicationsPage() {
   );
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-6 py-12">
-      <header className="max-w-2xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
-          Applications Dashboard
-        </p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-stone-900">
-          Track what needs attention and keep your application pipeline organized.
-        </h1>
-      </header>
+    <AppShell width="wide">
+      <PageHeader
+        eyebrow="Applications"
+        title="Applications"
+        description="Track what needs attention, keep your drafts moving, and scan the pipeline without losing the document context behind each role."
+      />
 
       {errorMessage ? (
         <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -173,17 +175,17 @@ export default function ApplicationsPage() {
       ) : null}
 
       {isLoading ? (
-        <p className="mt-6 text-sm text-stone-600">Loading applications...</p>
+        <p className="mt-6 text-sm text-[var(--color-muted)]">Loading applications...</p>
       ) : null}
 
       {!isLoading && isLoggedOut ? (
-        <section className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <p className="text-sm text-stone-600">
+        <section className="surface-panel mt-6 border-dashed p-6">
+          <p className="text-sm text-[var(--color-muted)]">
             Sign in to view and manage your saved applications.
           </p>
           <Link
             href="/"
-            className="mt-4 inline-flex text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+            className="mt-4 inline-flex text-sm font-medium text-[var(--color-navy)] underline-offset-4 hover:underline"
           >
             Go to workspace
           </Link>
@@ -191,13 +193,13 @@ export default function ApplicationsPage() {
       ) : null}
 
       {!isLoading && !isLoggedOut && applications.length === 0 ? (
-        <section className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <p className="text-sm text-stone-600">
+        <section className="surface-panel mt-6 border-dashed p-6">
+          <p className="text-sm text-[var(--color-muted)]">
             No saved applications yet. Generate one from the workspace first.
           </p>
           <Link
             href="/"
-            className="mt-4 inline-flex text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+            className="mt-4 inline-flex text-sm font-medium text-[var(--color-navy)] underline-offset-4 hover:underline"
           >
             Go to workspace
           </Link>
@@ -206,22 +208,28 @@ export default function ApplicationsPage() {
 
       {!isLoading && !isLoggedOut && applications.length > 0 ? (
         <>
-          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <SummaryCard label="Total applications" value={summary.total} />
-            <SummaryCard label="Applied" value={summary.applied} />
-            <SummaryCard label="Interview" value={summary.interview} />
-            <SummaryCard label="Rejected" value={summary.rejected} />
-            <SummaryCard
-              label="Follow-ups due"
-              value={summary.followUpsDue}
-              tone={summary.followUpsDue > 0 ? "alert" : "default"}
+          <div className="mt-6">
+            <MetricStrip
+              items={[
+                { label: "Total applications", value: summary.total },
+                { label: "Applied", value: summary.applied },
+                { label: "Interview", value: summary.interview },
+                { label: "Rejected", value: summary.rejected },
+                {
+                  label: "Follow-ups due",
+                  value: summary.followUpsDue,
+                  tone: summary.followUpsDue > 0 ? "alert" : "default",
+                },
+              ]}
             />
-          </section>
+          </div>
 
-          <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Filter by status
-            </p>
+          <MetadataPanel
+            title="Status filter"
+            description="Trim the pipeline to the stage you want to review."
+            eyebrow="Operational scan"
+            className="mt-6"
+          >
             <div className="mt-3 flex flex-wrap gap-2">
               {statusFilters.map((filter) => {
                 const isActive = selectedStatus === filter.value;
@@ -231,10 +239,10 @@ export default function ApplicationsPage() {
                     key={filter.value}
                     type="button"
                     onClick={() => setSelectedStatus(filter.value)}
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
                       isActive
-                        ? "bg-brand-700 text-white"
-                        : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                        ? "border-[var(--color-navy)] bg-[var(--color-navy)] text-white"
+                        : "border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-ink-soft)] hover:border-[var(--color-navy)]/35 hover:text-[var(--color-navy)]"
                     }`}
                   >
                     {filter.label}
@@ -242,7 +250,7 @@ export default function ApplicationsPage() {
                 );
               })}
             </div>
-          </section>
+          </MetadataPanel>
 
           <div className="mt-8 grid gap-8">
             <ApplicationsSection
@@ -283,42 +291,13 @@ export default function ApplicationsPage() {
       !isLoggedOut &&
       applications.length > 0 &&
       filteredApplications.length === 0 ? (
-        <section className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <p className="text-sm text-stone-600">
+        <section className="surface-panel mt-6 border-dashed p-6">
+          <p className="text-sm text-[var(--color-muted)]">
             No applications match the selected status filter.
           </p>
         </section>
       ) : null}
-    </main>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: number;
-  tone?: "default" | "alert";
-}) {
-  return (
-    <article
-      className={`rounded-2xl border p-5 shadow-sm ${
-        tone === "alert"
-          ? "border-amber-200 bg-amber-50"
-          : "border-stone-200 bg-white"
-      }`}
-    >
-      <p className="text-sm font-medium text-stone-600">{label}</p>
-      <p
-        className={`mt-3 text-3xl font-semibold ${
-          tone === "alert" ? "text-amber-800" : "text-stone-900"
-        }`}
-      >
-        {value}
-      </p>
-    </article>
+    </AppShell>
   );
 }
 
@@ -338,136 +317,34 @@ function ApplicationsSection({
   return (
     <section>
       <div className="mb-4">
-        <h2 className="text-2xl font-semibold text-stone-900">{title}</h2>
-        <p className="mt-1 text-sm text-stone-600">{description}</p>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--color-ink)]">
+            {title}
+          </h2>
+          {highlightTone === "alert" ? (
+            <StatusPill label="Due" tone="follow_up_due" compact />
+          ) : null}
+        </div>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">{description}</p>
       </div>
 
       {applications.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <p className="text-sm text-stone-600">{emptyState}</p>
+        <div className="surface-panel border-dashed p-6">
+          <p className="text-sm text-[var(--color-muted)]">{emptyState}</p>
         </div>
       ) : (
         <div className="grid gap-4">
           {applications.map((application) => (
-            <ApplicationCard
+            <ApplicationRow
               key={application.id}
               application={application}
-              highlightTone={highlightTone}
+              isOverdue={highlightTone === "alert" || needsAttention(application)}
             />
           ))}
         </div>
       )}
     </section>
   );
-}
-
-function ApplicationCard({
-  application,
-  highlightTone,
-}: {
-  application: ApplicationRecord;
-  highlightTone: "default" | "alert";
-}) {
-  const isOverdue = needsAttention(application);
-
-  return (
-    <article
-      className={`rounded-2xl border p-6 shadow-sm ${
-        highlightTone === "alert" || isOverdue
-          ? "border-amber-200 bg-amber-50/50"
-          : "border-stone-200 bg-white"
-      }`}
-    >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h3 className="text-xl font-semibold text-stone-900">
-            {application.role_title}
-          </h3>
-          <p className="mt-1 text-sm text-stone-600">
-            {application.company_name ?? "Company not parsed yet"}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge status={application.status} />
-          <Link
-            href={`/applications/${application.id}`}
-            className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition hover:border-stone-400 hover:bg-stone-50"
-          >
-            View details
-          </Link>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
-        <MetadataItem label="Applied">
-          {formatDate(application.applied_at)}
-        </MetadataItem>
-        <MetadataItem label="Follow-up">
-          <span
-            className={isOverdue ? "font-semibold text-rose-700" : undefined}
-          >
-            {formatDate(application.follow_up_at)}
-          </span>
-        </MetadataItem>
-        <MetadataItem label="Added">{formatDate(application.created_at)}</MetadataItem>
-      </div>
-    </article>
-  );
-}
-
-function StatusBadge({ status }: { status: ApplicationStatus }) {
-  const statusStyles: Record<ApplicationStatus, string> = {
-    draft: "bg-stone-100 text-stone-700",
-    applied: "bg-brand-100 text-brand-800",
-    interview: "bg-sky-100 text-sky-800",
-    offer: "bg-emerald-100 text-emerald-800",
-    rejected: "bg-rose-100 text-rose-800",
-    archived: "bg-stone-200 text-stone-700",
-  };
-
-  return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-sm font-medium capitalize ${statusStyles[status]}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-function MetadataItem({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-stone-200 bg-white px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-        {label}
-      </p>
-      <p className="mt-2 text-sm text-stone-700">{children}</p>
-    </div>
-  );
-}
-
-function formatDate(value?: string | null) {
-  if (!value) {
-    return "Not set";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Not set";
-  }
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 function needsAttention(application: ApplicationRecord) {

@@ -1,5 +1,6 @@
 // This file displays the structured job-fit analysis returned by the API.
 import type { FitAnalysis } from "@/lib/types";
+import { MetadataPanel } from "@/components/ui/MetadataPanel";
 
 type FitResultProps = {
   result: FitAnalysis | null;
@@ -7,9 +8,9 @@ type FitResultProps = {
 };
 
 const recommendationClasses: Record<FitAnalysis["recommendation"], string> = {
-  Apply: "bg-emerald-100 text-emerald-800",
-  Maybe: "bg-amber-100 text-amber-800",
-  Skip: "bg-rose-100 text-rose-800"
+  Apply: "border-[#c4d5c2] bg-[var(--color-ok-soft)] text-[var(--color-ok)]",
+  Maybe: "border-[#e5d1ac] bg-[var(--color-warn-soft)] text-[var(--color-ochre)]",
+  Skip: "border-[#ead8d0] bg-[#f6ebe7] text-[#9a4c39]"
 };
 
 export function FitResult({
@@ -18,9 +19,9 @@ export function FitResult({
 }: FitResultProps) {
   if (!result) {
     return (
-      <section className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-        <h2 className="text-lg font-semibold text-stone-900">Fit Summary</h2>
-        <p className="mt-2 text-sm text-stone-600">
+      <section className="surface-panel border-dashed p-6">
+        <h2 className="text-lg font-semibold text-[var(--color-ink)]">Fit Summary</h2>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
           A brief fit summary will appear here after the application package is generated.
         </p>
       </section>
@@ -31,14 +32,17 @@ export function FitResult({
     <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-stone-900">Fit Summary</h2>
-          <p className="mt-1 text-sm text-stone-600">{result.reasoning}</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-faint)]">
+            Fit analysis
+          </p>
+          <h2 className="mt-2 text-lg font-semibold text-[var(--color-ink)]">Fit Summary</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">{result.reasoning}</p>
         </div>
 
         <div className="text-right">
-          <div className="text-3xl font-bold text-brand-700">{result.fitScore}/100</div>
+          <div className="text-3xl font-bold text-[var(--color-navy)]">{result.fitScore}/100</div>
           <span
-            className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${recommendationClasses[result.recommendation]}`}
+            className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${recommendationClasses[result.recommendation]}`}
           >
             {result.recommendation}
           </span>
@@ -47,12 +51,12 @@ export function FitResult({
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+          <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-faint)]">
             Strengths
           </h3>
-          <ul className="mt-3 space-y-2 text-sm text-stone-700">
+          <ul className="mt-3 space-y-2 text-sm text-[var(--color-ink-soft)]">
             {result.strengths.map((item) => (
-              <li key={item} className="rounded-xl bg-stone-50 px-3 py-2">
+              <li key={item} className="surface-warm px-3 py-2">
                 {item}
               </li>
             ))}
@@ -60,12 +64,12 @@ export function FitResult({
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+          <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-faint)]">
             Gaps
           </h3>
-          <ul className="mt-3 space-y-2 text-sm text-stone-700">
+          <ul className="mt-3 space-y-2 text-sm text-[var(--color-ink-soft)]">
             {result.gaps.map((item) => (
-              <li key={item} className="rounded-xl bg-stone-50 px-3 py-2">
+              <li key={item} className="surface-warm px-3 py-2">
                 {item}
               </li>
             ))}
@@ -77,20 +81,20 @@ export function FitResult({
 
   if (collapsedByDefault) {
     return (
-      <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+      <MetadataPanel title="Fit Summary" description="Open the saved fit analysis for this application." eyebrow="Compatibility snapshot">
         <details>
-          <summary className="cursor-pointer list-none text-lg font-semibold text-stone-900">
+          <summary className="cursor-pointer list-none text-lg font-semibold text-[var(--color-ink)]">
             View Fit Summary
           </summary>
           <div className="mt-4">{content}</div>
         </details>
-      </section>
+      </MetadataPanel>
     );
   }
 
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    <MetadataPanel title="Fit Summary" description="Review the generated strengths, gaps, and recommendation." eyebrow="Compatibility snapshot">
       {content}
-    </section>
+    </MetadataPanel>
   );
 }

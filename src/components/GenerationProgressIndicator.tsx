@@ -12,7 +12,7 @@ export function GenerationProgressIndicator({
   }
 
   return (
-    <p className="mt-3 text-center text-sm text-stone-600">
+    <p className="mt-3 font-mono text-center text-[11px] uppercase tracking-[0.14em] text-[var(--color-faint)]">
       {stageText}
     </p>
   );
