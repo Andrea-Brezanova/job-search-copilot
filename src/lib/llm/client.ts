@@ -1,14 +1,11 @@
-// This file wraps the OpenAI Responses API for text and structured JSON output.
+// This file wraps the OpenAI Responses API for text output and text-parsed JSON.
 import OpenAI from "openai";
+import { debugJson, debugLog } from "@/lib/logging";
 
 type GenerateStructuredOutputParams = {
   prompt: string;
   input: string;
   outputType?: "text" | "json";
-  jsonSchema?: {
-    name: string;
-    schema: Record<string, unknown>;
-  };
 };
 
 export type StructuredOutputDebug<T> = {
@@ -22,6 +19,9 @@ export type StructuredOutputDebug<T> = {
 const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
 const DEFAULT_OPENAI_TIMEOUT_MS = 30000;
 
+// JSON output is currently requested as plain text and parsed locally. This helper
+// does not enforce a schema with the OpenAI API, so callers should treat JSON mode
+// as "best-effort parsed structured text" rather than guaranteed schema validation.
 export async function generateStructuredOutput<T>({
   prompt,
   input,
@@ -44,8 +44,8 @@ export async function generateStructuredOutput<T>({
     const client = new OpenAI({ apiKey });
     const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || DEFAULT_OPENAI_TIMEOUT_MS);
     const startedAt = Date.now();
-    console.log("openai-model", model);
-    console.log("openai-timeout-ms", timeoutMs);
+    debugLog("openai-model", model);
+    debugLog("openai-timeout-ms", timeoutMs);
 
     const requestPromise = client.responses.create({
       model,
@@ -65,11 +65,11 @@ export async function generateStructuredOutput<T>({
     });
 
     const response = await Promise.race([requestPromise, timeoutPromise]);
-    console.log("openai-responses-create-ms", Date.now() - startedAt);
-    console.log("OPENAI RAW RESPONSE:", JSON.stringify(response, null, 2));
+    debugLog("openai-responses-create-ms", Date.now() - startedAt);
+    debugJson("OPENAI RAW RESPONSE:", response);
 
     const outputText = extractResponseText(response).trim();
-    console.log("EXTRACTED TEXT:", outputText);
+    debugLog("EXTRACTED TEXT:", outputText);
 
     if (!outputText) {
       return {

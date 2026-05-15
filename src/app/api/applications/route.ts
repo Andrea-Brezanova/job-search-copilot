@@ -4,11 +4,13 @@ import {
   listApplications,
   saveGeneratedApplication
 } from "@/lib/db/queries";
-import { parseProfileText } from "@/lib/engines/profileEngine";
+import { getAuthenticatedSupabaseUser } from "@/lib/db/supabase";
+import { debugLog } from "@/lib/logging";
 import type {
   ApplicationDocs,
   ApplicationStatus,
   FitAnalysis,
+  ParsedProfile,
   ParsedJob
 } from "@/lib/types";
 
@@ -16,9 +18,18 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown server error.";
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const applications = await listApplications();
+    const user = await getAuthenticatedSupabaseUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Please log in to view your saved applications." },
+        { status: 401 }
+      );
+    }
+
+    const applications = await listApplications(user.id);
     return NextResponse.json(applications);
   } catch (error) {
     console.error("applications GET error", error);
@@ -35,12 +46,22 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthenticatedSupabaseUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Please log in to save your application." },
+        { status: 401 }
+      );
+    }
+
     const startedAt = Date.now();
     const body = (await request.json()) as {
       profileText?: string;
       uploadedFileName?: string | null;
       jobDescription?: string;
       fitAnalysis?: FitAnalysis;
+      parsedProfile?: ParsedProfile;
       parsedJob?: ParsedJob;
       documents?: ApplicationDocs;
       status?: ApplicationStatus;
@@ -61,23 +82,20 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.parsedJob) {
+    if (!body.parsedProfile || !body.parsedJob) {
       return NextResponse.json(
         { error: "We could not save this application right now. Please try generating it again." },
         { status: 400 }
       );
     }
 
-    const parseStartedAt = Date.now();
-    const parsedResume = await parseProfileText(body.profileText);
-    console.log("application-save-parse-ms", Date.now() - parseStartedAt);
     const saveStartedAt = Date.now();
     const savedApplication = await saveGeneratedApplication({
-      userId: null,
+      userId: user.id,
       resumeFileName: body.uploadedFileName ?? null,
       rawResumeText: body.profileText,
       rawJobText: body.jobDescription,
-      parsedResume,
+      parsedResume: body.parsedProfile,
       parsedJob: body.parsedJob,
       fitAnalysis: body.fitAnalysis,
       coverLetterDraft: body.documents.coverLetter,
@@ -85,8 +103,8 @@ export async function POST(request: Request) {
       status: body.status ?? "draft",
       notes: body.notes ?? null
     });
-    console.log("application-save-db-ms", Date.now() - saveStartedAt);
-    console.log("application-save-total-ms", Date.now() - startedAt);
+    debugLog("application-save-db-ms", Date.now() - saveStartedAt);
+    debugLog("application-save-total-ms", Date.now() - startedAt);
 
     return NextResponse.json(savedApplication, { status: 201 });
   } catch (error) {

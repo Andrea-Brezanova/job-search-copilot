@@ -1,22 +1,30 @@
 // This file repurposes the old jobs route so it points users toward the new MVP flow.
 import Link from "next/link";
+import { AppShell } from "@/components/ui/AppShell";
+import { MetadataPanel } from "@/components/ui/MetadataPanel";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 
 export default function JobsPage() {
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-6 py-16">
-      <div className="rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-stone-900">Jobs Route</h1>
-        <p className="mt-3 text-sm leading-6 text-stone-600">
+    <AppShell contentClassName="max-w-3xl">
+      <PageHeader
+        eyebrow="Jobs"
+        title="Jobs"
+        description="This route remains a placeholder while the current product centers on the workspace and tracked applications."
+      />
+      <MetadataPanel title="Current flow" description="Generate and save application packages from the main workspace." className="mt-6">
+        <p className="text-sm leading-6 text-[var(--color-muted)]">
           The MVP now centers on generating and saving application packages from the
           main workspace.
         </p>
         <Link
           href="/"
-          className="mt-4 inline-flex text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+          className={`${buttonStyles({ variant: "secondary", size: "sm" })} mt-4`}
         >
           Go to workspace
         </Link>
-      </div>
-    </main>
+      </MetadataPanel>
+    </AppShell>
   );
 }

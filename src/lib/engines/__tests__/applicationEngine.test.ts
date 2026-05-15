@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { generateStructuredOutput } from "@/lib/llm/client";
 
 vi.mock("@/lib/llm/client", () => ({
   generateStructuredOutput: vi.fn().mockResolvedValue({
@@ -71,6 +72,15 @@ describe("generateApplicationPackage fallback generation", () => {
     expect(result.documents.coverLetter).toContain("Junior Software Engineer role");
   });
 
+  it("keeps direct-match positioning on direct-overlap roles", async () => {
+    const result = await generateApplicationPackage(resumeText, jobDescription);
+
+    expect(["strong_match", "partial_match"]).toContain(
+      result.positioningStrategy?.generationMode
+    );
+    expect(["strong", "partial"]).toContain(result.positioningStrategy?.matchLevel);
+  });
+
   it("never combines a person name with Hiring Team in the email greeting", async () => {
     const result = await generateApplicationPackage(resumeText, jobDescription);
 
@@ -86,6 +96,76 @@ describe("generateApplicationPackage fallback generation", () => {
 
     expect(email.match(/Andrea Brezanova/g)?.length ?? 0).toBe(1);
     expect(email.match(/andrea\.brezan@gmail\.com/g)?.length ?? 0).toBe(1);
+  });
+
+  it("uses a neutral CTA without mentioning this week", async () => {
+    const result = await generateApplicationPackage(resumeText, jobDescription);
+
+    expect(result.documents.coverLetter).not.toContain("this week");
+    expect(result.documents.applicationEmail).not.toContain("this week");
+    expect(result.documents.applicationEmail).toContain(
+      "Would you be available for a short Zoom call to discuss the role?"
+    );
+  });
+
+  it("normalizes alternate this-week CTA variants", async () => {
+    vi.mocked(generateStructuredOutput).mockResolvedValueOnce({
+      data: {
+        cover_letter: `Dear Hiring Team,
+
+I’m applying for the Junior Software Engineer role.
+
+Would you be available for a short Zoom call this week to explore this role further?
+
+Best regards,
+Andrea Brezanova
+andrea.brezan@gmail.com`,
+        email_text: `Dear Hiring Team,
+
+I’m applying for the Junior Software Engineer role.
+
+Would you be available for a short Zoom call this week to explore this role further?
+
+Best regards,
+Andrea Brezanova
+andrea.brezan@gmail.com`,
+        application_summary: "Summary"
+      },
+      model: "test-model",
+      rawOutputText: "{\"cover_letter\":\"...\",\"email_text\":\"...\",\"application_summary\":\"...\"}",
+      wasOpenAIUsed: true
+    });
+
+    const result = await generateApplicationPackage(resumeText, jobDescription);
+
+    expect(result.documents.coverLetter).not.toContain("this week");
+    expect(result.documents.applicationEmail).not.toContain("this week");
+    expect(result.documents.coverLetter).toContain(
+      "Would you be available for a short Zoom call to discuss the role?"
+    );
+    expect(result.documents.applicationEmail).toContain(
+      "Would you be available for a short Zoom call to discuss the role?"
+    );
+  });
+
+  it("falls back to Dear Hiring Team when the parsed company looks like a location", async () => {
+    const noisyLocationJobDescription = `
+AI Engineer
+Berlin, Berlin, Germany
+
+Key Responsibilities:
+- Build backend systems and internal tools.
+`;
+
+    const result = await generateApplicationPackage(
+      resumeText,
+      noisyLocationJobDescription
+    );
+
+    expect(result.documents.coverLetter).toMatch(/^Dear Hiring Team,/);
+    expect(result.documents.coverLetter).not.toMatch(
+      /^Dear Berlin, Berlin, Germany Hiring Team,/
+    );
   });
 
   it("does not inject the legacy cover letter CTA", async () => {

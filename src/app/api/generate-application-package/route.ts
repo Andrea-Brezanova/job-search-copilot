@@ -1,6 +1,7 @@
 // This file generates the full application package for the workspace.
 import { NextResponse } from "next/server";
 import { generateApplicationPackage } from "@/lib/engines/applicationEngine";
+import { debugLog } from "@/lib/logging";
 
 export async function POST(request: Request) {
   try {
@@ -16,16 +17,13 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("API RECEIVED resumeText:", body.profileText.slice(0, 200));
-    console.log(
-      "API RECEIVED jobDescriptionText:",
-      body.jobDescription.slice(0, 200)
-    );
+    debugLog("generate-application-package request received");
 
     const applicationPackage = await generateApplicationPackage(
       body.profileText,
       body.jobDescription
     );
+    debugLog("generate-application-package request succeeded");
 
     return NextResponse.json(applicationPackage);
   } catch (error) {

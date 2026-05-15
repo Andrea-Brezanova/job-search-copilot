@@ -1,22 +1,30 @@
 // This file repurposes the old profile route so it fits the current MVP.
 import Link from "next/link";
+import { AppShell } from "@/components/ui/AppShell";
+import { MetadataPanel } from "@/components/ui/MetadataPanel";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 
 export default function ProfilePage() {
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-6 py-16">
-      <div className="rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-stone-900">Profile Route</h1>
-        <p className="mt-3 text-sm leading-6 text-stone-600">
+    <AppShell contentClassName="max-w-3xl">
+      <PageHeader
+        eyebrow="Account"
+        title="Account"
+        description="The current MVP keeps resume upload and generation in the workspace. This route remains a lightweight placeholder for future account settings."
+      />
+      <MetadataPanel title="Coming soon" description="Your default workflow is still the main workspace." className="mt-6">
+        <p className="text-sm leading-6 text-[var(--color-muted)]">
           Resume input and upload now happen directly on the main workspace so users
           can generate application packages faster.
         </p>
         <Link
           href="/"
-          className="mt-4 inline-flex text-sm font-medium text-brand-700 underline-offset-4 hover:underline"
+          className={`${buttonStyles({ variant: "secondary", size: "sm" })} mt-4`}
         >
           Go to workspace
         </Link>
-      </div>
-    </main>
+      </MetadataPanel>
+    </AppShell>
   );
 }

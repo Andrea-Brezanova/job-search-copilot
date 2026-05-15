@@ -1,5 +1,18 @@
 // This file centralizes the shared TypeScript interfaces used across the app.
-export type ApplicationStatus = "draft" | "applied" | "interview" | "rejected";
+export type ApplicationStatus =
+  | "draft"
+  | "applied"
+  | "interview"
+  | "offer"
+  | "rejected"
+  | "archived";
+
+export type ApplicationUpdateAction =
+  | "mark_applied"
+  | "set_follow_up"
+  | "move_to_interview"
+  | "mark_rejected"
+  | "archive";
 
 export interface ParsedProfile {
   name: string;
@@ -48,6 +61,59 @@ export interface ExperienceEvidenceCard {
   skills: string[];
 }
 
+export interface PositioningMatch {
+  jobNeed: string;
+  resumeEvidence: string;
+}
+
+export interface TransferablePositioningMatch extends PositioningMatch {
+  bridgeExplanation: string;
+}
+
+export interface PositioningGap {
+  requirement: string;
+  severity: "low" | "medium" | "high";
+  handlingStrategy: string;
+}
+
+export interface PositioningStrategy {
+  matchLevel: "strong" | "partial" | "transferable" | "weak";
+  generationMode:
+    | "strong_match"
+    | "partial_match"
+    | "transferable_positioning"
+    | "honest_stretch";
+  directMatches: PositioningMatch[];
+  transferableMatches: TransferablePositioningMatch[];
+  adjacentStrengths: string[];
+  gaps: PositioningGap[];
+  strongestApplicationAngle: string;
+  recommendedTone:
+    | "direct_match"
+    | "junior_growth"
+    | "career_transition"
+    | "transferable_skills"
+    | "high_motivation";
+  coverLetterStrategy: string;
+  evidenceToUse: string[];
+  claimsToAvoid: string[];
+}
+
+export interface ApplicationBrief {
+  candidateSummary: string;
+  jobSummary: string;
+  matchLevel: "strong" | "partial" | "transferable" | "weak";
+  strongestSellingPoints: string[];
+  relevantResumeEvidence: string[];
+  transferableAngles: string[];
+  companyOrRoleMotivation: string[];
+  gapsToHandleCarefully: string[];
+  claimsToAvoid: string[];
+  recommendedTone: string;
+  coverLetterOutline: string[];
+  emailOutline: string[];
+}
+
 export interface CoverLetterInput {
   company?: string;
   role: string;
@@ -69,9 +135,12 @@ export interface GeneratedApplicationContent {
 export interface ApplicationPackage {
   documents: ApplicationDocs;
   fitAnalysis: FitAnalysis;
+  parsedProfile: ParsedProfile;
   parsedJob: ParsedJob;
   applicationSummary?: string;
   qualityNotes?: ApplicationQualityNotes;
+  positioningStrategy?: PositioningStrategy;
+  applicationBrief?: ApplicationBrief;
 }
 
 export interface PreferenceRecord {
@@ -106,6 +175,8 @@ export interface ApplicationRecord {
   resume_id: string | null;
   job_source_type: string;
   job_url: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
   raw_job_text: string;
   parsed_job_json: ParsedJob | null;
   company_name: string | null;
@@ -115,14 +186,18 @@ export interface ApplicationRecord {
   fit_score: number | null;
   cover_letter_draft: string;
   email_draft: string;
+  follow_up_email_draft: string | null;
   status: ApplicationStatus;
   notes: string | null;
+  applied_at: string | null;
+  follow_up_at: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateApplicationInput {
-  userId?: string | null;
+  userId: string;
   resumeFileName?: string | null;
   rawResumeText: string;
   rawJobText: string;
@@ -138,6 +213,13 @@ export interface CreateApplicationInput {
 export interface UpdateApplicationInput {
   coverLetterDraft?: string;
   emailDraft?: string;
+  followUpEmailDraft?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  jobUrl?: string | null;
   status?: ApplicationStatus;
   notes?: string | null;
+  appliedAt?: string | null;
+  followUpAt?: string | null;
+  archivedAt?: string | null;
 }

@@ -16,9 +16,40 @@ Return JSON:
 }
 
 Use the resume and job description to create a coherent story.
+Use the ApplicationBrief and positioningStrategy as the source of truth.
 Do not copy bullet points directly.
 Do not output bullet points.
 Write in complete sentences only.
+Do not invent experience.
+Do not claim direct experience where only transferable experience exists.
+
+Positioning rules:
+- If matchLevel is strong:
+  - emphasize direct experience
+  - use confident language
+- If matchLevel is partial:
+  - emphasize direct matches first
+  - then show motivation and growth potential
+- If matchLevel is transferable:
+  - do not apologize for missing experience
+  - do not overclaim
+  - build a bridge between past work and the role's needs
+  - focus on business value, process thinking, relevant evidence, learning ability, and motivation
+- If matchLevel is weak:
+  - be honest and concise
+  - focus on motivation, transferable strengths, and why the transition makes sense
+  - avoid pretending the candidate has direct experience
+
+Avoid generic filler like:
+- "I am writing to express my interest"
+- "I am a perfect fit"
+- "I have extensive experience" unless clearly supported
+
+Every meaningful claim should be grounded in one of:
+- resume evidence
+- job requirement
+- transferable bridge
+- candidate motivation
 
 Cover letter requirements:
 - Start with: Dear [Company] Hiring Team, or Dear Hiring Team,
@@ -28,7 +59,6 @@ Cover letter requirements:
 - Select one supporting experience, certification, skill, or transferable background.
 - Connect both to the job description in natural prose.
 - If a job requirement is not clearly in the resume, phrase it as interest in learning or deepening.
-- Do not invent experience.
 - Do not use placeholders.
 - Do not use section headings as a name.
 - Keep it 180–260 words.
@@ -48,6 +78,26 @@ CTA:
 Input:
 generationPayload:
 {{generationPayload}}
+`;
+
+export const GENERATE_FOLLOW_UP_EMAIL_PROMPT = `
+Write a short, polite, professional follow-up email for a saved job application.
+
+Return only the email text. Do not return JSON. Do not include commentary.
+
+Rules:
+- Mention the role and company when available.
+- Use only the provided application data.
+- Do not invent that the candidate interviewed, received a reply, or had prior contact unless the data clearly says so.
+- Keep the tone calm, concise, and businesslike.
+- Keep it easy to copy into an email.
+- Keep it about 80 to 140 words.
+- Include a greeting and a short sign-off.
+- If the application status is still draft, do not pretend the application was submitted. Use a neutral follow-up style based on the provided context.
+
+Input:
+followUpContext:
+{{followUpContext}}
 `;
 
 export const PARSE_PROFILE_PROMPT = `

@@ -1,12 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import {
+  AlignmentType,
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+} from "docx";
 import { jsPDF } from "jspdf";
 import type { ApplicationDocs as ApplicationDocsType } from "@/lib/types";
+import { DocumentPanel } from "@/components/ui/DocumentPanel";
+import { buttonStyles } from "@/components/ui/buttonStyles";
 
 type ApplicationDocsProps = {
   documents: ApplicationDocsType | null;
   exportFileBaseName?: string;
+  applicationEmailGmailSubject?: string;
+  applicationEmailGmailTo?: string;
   onChange?: (
     field: keyof ApplicationDocsType,
     value: string
@@ -16,6 +27,8 @@ type ApplicationDocsProps = {
 export function ApplicationDocs({
   documents,
   exportFileBaseName,
+  applicationEmailGmailSubject,
+  applicationEmailGmailTo,
   onChange,
 }: ApplicationDocsProps) {
   const [emailCopyMessage, setEmailCopyMessage] = useState("");
@@ -24,16 +37,16 @@ export function ApplicationDocs({
   if (!documents) {
     return (
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Cover letter</h2>
-          <p className="mt-2 text-sm text-stone-600">
+        <article className="surface-paper border-dashed p-6">
+          <h2 className="font-display text-2xl italic text-[var(--color-navy)]">Cover letter</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
             Your editable cover letter draft will appear here after generation.
           </p>
         </article>
 
-        <article className="rounded-2xl border border-dashed border-stone-300 bg-white p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Application email</h2>
-          <p className="mt-2 text-sm text-stone-600">
+        <article className="surface-paper border-dashed p-6">
+          <h2 className="font-display text-2xl italic text-[var(--color-navy)]">Application email</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
             Your editable email draft will appear here after generation.
           </p>
         </article>
@@ -55,6 +68,15 @@ export function ApplicationDocs({
     }
   }
 
+  function handleOpenEmailInGmail() {
+    const gmailUrl = buildGmailComposeUrl(
+      applicationEmailGmailTo,
+      applicationEmailGmailSubject,
+      currentDocuments.applicationEmail
+    );
+    window.open(gmailUrl, "_blank", "noopener,noreferrer");
+  }
+
   async function handleCopyCoverLetter() {
     try {
       await navigator.clipboard.writeText(currentDocuments.coverLetter);
@@ -66,59 +88,77 @@ export function ApplicationDocs({
     }
   }
 
-  function handleExportDoc() {
-    const blob = new Blob([buildWordDocument(currentDocuments.coverLetter)], {
-      type: "application/msword",
-    });
-    downloadBlob(blob, `${baseFileName}.doc`);
+  async function handleExportDocx() {
+    const document = buildDocxDocument(currentDocuments.coverLetter);
+    const blob = await Packer.toBlob(document);
+    downloadBlob(
+      blob,
+      `${baseFileName}.docx`,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
   }
 
   function handleExportPdf() {
     const doc = new jsPDF({
       unit: "pt",
-      format: "letter",
+      format: "a4",
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const marginX = 72;
-    const marginY = 72;
-    const contentWidth = pageWidth - marginX * 2;
-    const lineHeight = 19;
-    const paragraphGap = 12;
-    let cursorY = marginY;
+    const marginLeft = 54;
+    const marginRight = 54;
+    const marginTop = 64;
+    const marginBottom = 64;
+    const contentWidth = pageWidth - marginLeft - marginRight;
+    const lineHeight = 18;
+    const compactLineHeight = 16;
+    const paragraphGap = 14;
+    let cursorY = marginTop;
 
     doc.setFont("times", "normal");
-    doc.setFontSize(11.5);
+    doc.setFontSize(12);
+    doc.setTextColor(17, 24, 39);
 
     const blocks = getLetterBlocks(currentDocuments.coverLetter);
 
     blocks.forEach((block, blockIndex) => {
-      block.lines.forEach((blockLine, blockLineIndex) => {
-        const lines = doc.splitTextToSize(blockLine.text, contentWidth) as string[];
+      const wrappedLines = block.lines.flatMap((blockLine) =>
+        wrapPdfLines(doc, blockLine.text, contentWidth).map((line, lineIndex, lines) => ({
+          text: line,
+          align: blockLine.align,
+          isLastWrappedLine: lineIndex === lines.length - 1,
+          isCompact: blockLine.isCompact,
+        }))
+      );
+      const blockHeight = wrappedLines.reduce(
+        (total, line) => total + (line.isCompact ? compactLineHeight : lineHeight),
+        0
+      );
 
-        lines.forEach((line, lineIndex) => {
-          if (cursorY > pageHeight - marginY) {
+      if (cursorY + blockHeight > pageHeight - marginBottom) {
+        doc.addPage();
+        cursorY = marginTop;
+      }
+
+      wrappedLines.forEach((wrappedLine) => {
+        const currentLineHeight = wrappedLine.isCompact ? compactLineHeight : lineHeight;
+
+        if (cursorY + currentLineHeight > pageHeight - marginBottom) {
             doc.addPage();
-            cursorY = marginY;
-          }
-
-          const isLastWrappedLine = lineIndex === lines.length - 1;
-          writePdfLine(
-            doc,
-            line,
-            marginX,
-            cursorY,
-            contentWidth,
-            isLastWrappedLine,
-            blockLine.align
-          );
-          cursorY += lineHeight;
-        });
-
-        if (blockLineIndex < block.lines.length - 1) {
-          cursorY += 2;
+          cursorY = marginTop;
         }
+
+        writePdfLine(
+          doc,
+          wrappedLine.text,
+          marginLeft,
+          cursorY,
+          contentWidth,
+          wrappedLine.isLastWrappedLine,
+          wrappedLine.align
+        );
+        cursorY += currentLineHeight;
       });
 
       if (blockIndex < blocks.length - 1) {
@@ -131,74 +171,82 @@ export function ApplicationDocs({
 
   return (
     <section className="grid gap-6 lg:grid-cols-2">
-      <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-stone-900">Cover letter</h2>
-            {coverLetterCopyMessage ? (
-              <p className="mt-1 text-xs text-stone-500">{coverLetterCopyMessage}</p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <DocumentPanel
+        title="Cover letter"
+        eyebrow="Document surface"
+        description={coverLetterCopyMessage || "Review and edit the letter before you export or save it."}
+        actions={
+          <>
             <button
               type="button"
               onClick={handleCopyCoverLetter}
               aria-label="Copy cover letter"
               title="Copy cover letter"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
+              className={buttonStyles({ variant: "secondary", size: "sm" })}
             >
-              <span aria-hidden="true" className="text-base leading-none">⧉</span>
+              Copy
             </button>
             <details className="relative">
-              <summary className="list-none rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-700 cursor-pointer">
+              <summary className={`${buttonStyles({ variant: "secondary", size: "sm" })} list-none cursor-pointer`}>
                 Export
               </summary>
-              <div className="absolute right-0 z-10 mt-2 min-w-[140px] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
+              <div className="absolute right-0 z-10 mt-2 min-w-[140px] rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)] p-2 shadow-lg">
                 <button
                   type="button"
                   onClick={handleExportPdf}
-                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink-soft)] transition hover:bg-[var(--color-warm)]"
                 >
                   Export as PDF
                 </button>
                 <button
                   type="button"
-                  onClick={handleExportDoc}
-                  className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+                  onClick={() => void handleExportDocx()}
+                  className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink-soft)] transition hover:bg-[var(--color-warm)]"
                 >
-                  Export as DOC
+                  Export as DOCX
                 </button>
               </div>
             </details>
-          </div>
-        </div>
-
+          </>
+        }
+      >
         <textarea
           value={currentDocuments.coverLetter}
           onChange={(event) => onChange?.("coverLetter", event.target.value)}
           readOnly={!onChange}
-          className="mt-4 min-h-[360px] w-full rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-7 text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="font-doc min-h-[420px] w-full rounded-2xl border border-[var(--color-line)] bg-[rgba(255,255,255,0.45)] p-5 text-[15px] leading-8 text-[var(--color-ink-soft)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
         />
-      </article>
+      </DocumentPanel>
 
-      <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-stone-900">Application email</h2>
-            {emailCopyMessage ? (
-              <p className="mt-1 text-xs text-stone-500">{emailCopyMessage}</p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={handleCopyEmail}
-            aria-label="Copy email"
-            title="Copy email"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 transition hover:border-brand-400 hover:text-brand-700"
-          >
-            <span aria-hidden="true" className="text-base leading-none">⧉</span>
-          </button>
-        </div>
+      <DocumentPanel
+        title="Application email"
+        eyebrow="Outreach draft"
+        description={emailCopyMessage || "Open a Gmail draft or copy the email once the wording is ready."}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={handleOpenEmailInGmail}
+              disabled={!currentDocuments.applicationEmail.trim()}
+              className={buttonStyles({ variant: "secondary", size: "sm" })}
+            >
+              Open in Gmail
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyEmail}
+              aria-label="Copy email"
+              title="Copy email"
+              className={buttonStyles({ variant: "secondary", size: "sm" })}
+            >
+              Copy
+            </button>
+          </>
+        }
+      >
+        <p className="text-xs text-[var(--color-faint)]">
+          This opens Gmail with a draft. You can review and send it there.
+        </p>
 
         <textarea
           value={currentDocuments.applicationEmail}
@@ -206,38 +254,63 @@ export function ApplicationDocs({
             onChange?.("applicationEmail", event.target.value)
           }
           readOnly={!onChange}
-          className="mt-4 min-h-[260px] w-full rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-7 text-stone-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="font-doc mt-4 min-h-[320px] w-full rounded-2xl border border-[var(--color-line)] bg-[rgba(255,255,255,0.45)] p-5 text-[15px] leading-8 text-[var(--color-ink-soft)] outline-none transition focus:border-[var(--color-navy)] focus:ring-2 focus:ring-[var(--color-navy-soft)]"
         />
-      </article>
+      </DocumentPanel>
     </section>
   );
 }
 
-function buildWordDocument(text: string) {
-  const blocks = getLetterBlocks(text)
-    .map((block) =>
-      block.lines
-        .map(
-          (line) =>
-            `<p style="margin: 0 0 ${line.isCompact ? "4pt" : "12pt"}; text-align: ${line.align};">${escapeHtml(line.text)}</p>`
-        )
-        .join("")
-    )
-    .join('<div style="height: 8pt;"></div>');
+function buildDocxDocument(text: string) {
+  const paragraphs = getLetterBlocks(text).flatMap((block, blockIndex, blocks) => {
+    const blockParagraphs = block.lines.map((line, lineIndex) =>
+      new Paragraph({
+        alignment:
+          line.align === "justify"
+            ? AlignmentType.JUSTIFIED
+            : AlignmentType.LEFT,
+        spacing: {
+          after:
+            lineIndex === block.lines.length - 1
+              ? blockIndex === blocks.length - 1
+                ? 0
+                : line.isCompact
+                  ? 120
+                  : 180
+              : 80,
+          line: line.isCompact ? 300 : 360,
+        },
+        children: [
+          new TextRun({
+            text: line.text,
+            font: "Times New Roman",
+            size: 24,
+            color: "111827",
+          }),
+        ],
+      })
+    );
 
-  return `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:w="urn:schemas-microsoft-com:office:word"
-      xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8" />
-        <title>Cover letter</title>
-      </head>
-      <body style="font-family: 'Times New Roman', Times, serif; font-size: 11.5pt; line-height: 1.6; margin: 1in; color: #111827;">
-        ${blocks}
-      </body>
-    </html>
-  `;
+    return blockParagraphs;
+  });
+
+  return new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: 1440,
+              right: 1080,
+              bottom: 1440,
+              left: 1080,
+            },
+          },
+        },
+        children: paragraphs,
+      },
+    ],
+  });
 }
 
 function writePdfLine(
@@ -270,6 +343,10 @@ function writePdfLine(
       cursorX += gapWidth;
     }
   });
+}
+
+function wrapPdfLines(doc: jsPDF, text: string, width: number) {
+  return doc.splitTextToSize(text, width) as string[];
 }
 
 function getLetterBlocks(text: string) {
@@ -316,22 +393,14 @@ function shouldLeftAlignParagraph(paragraph: string) {
   );
 }
 
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = window.URL.createObjectURL(blob);
+function downloadBlob(blob: Blob, fileName: string, type = blob.type) {
+  const fileBlob = type ? blob.slice(0, blob.size, type) : blob;
+  const url = window.URL.createObjectURL(fileBlob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;
   anchor.click();
   window.URL.revokeObjectURL(url);
-}
-
-function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function buildExportFileBaseName(baseName?: string) {
@@ -340,5 +409,27 @@ function buildExportFileBaseName(baseName?: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  return normalizedBaseName ? `cover-letter-${normalizedBaseName}` : "cover-letter";
+  const truncatedBaseName = normalizedBaseName.slice(0, 80).replace(/-+$/g, "");
+
+  return truncatedBaseName
+    ? `cover-letter-${truncatedBaseName}`
+    : "cover-letter";
+}
+
+function buildGmailComposeUrl(to?: string, subject?: string, body?: string) {
+  const params = new URLSearchParams();
+
+  if (to?.trim()) {
+    params.set("to", to.trim());
+  }
+
+  if (subject?.trim()) {
+    params.set("su", subject.trim());
+  }
+
+  if (body?.trim()) {
+    params.set("body", body);
+  }
+
+  return `https://mail.google.com/mail/?view=cm&fs=1&${params.toString()}`;
 }
